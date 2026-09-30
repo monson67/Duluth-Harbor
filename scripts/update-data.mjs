@@ -152,21 +152,45 @@ async function updateLake() {
 }
 
 // --- Live camera list (YouTube) ----------------------------------------------
+// Ask YouTube whether a video exists and may be shown on other sites.
+async function checkVideo(id) {
+  const url = `https://www.youtube.com/oembed?format=json&url=${encodeURIComponent("https://www.youtube.com/watch?v=" + id)}`;
+  const res = await fetch(url, { signal: AbortSignal.timeout(10000) });
+  if (!res.ok) return { ok: false, status: res.status };
+  const j = await res.json();
+  return { ok: true, title: j.title, author: j.author_name };
+}
+
 async function updateCams() {
-  const html = await getText("https://www.youtube.com/@DuluthHarborCam1/streams", {
-    headers: { "Accept-Language": "en-US", "User-Agent": "Mozilla/5.0" },
-  });
-  const cams = [];
-  const seen = new Set();
-  const re = /"videoRenderer":\{"videoId":"([\w-]{11})"(.{0,4000}?)"title":\{"runs":\[\{"text":"([^"]+)"/g;
-  let m;
-  while ((m = re.exec(html))) {
-    const [, id, , title] = m;
-    const chunk = html.slice(m.index, m.index + 6000);
-    const live = /LIVE_NOW|"style":"LIVE"|"label":"LIVE"/.test(chunk);
-    if (live && !seen.has(id)) { seen.add(id); cams.push({ youtube: id, title: title.replace(/\\u0026/g, "&") }); }
+  const found = new Map(); // id -> where we found it
+  // 1. Streams that are live right now on Duluth Harbor Cam's channel.
+  try {
+    const html = await getText("https://www.youtube.com/@DuluthHarborCam1/streams", { headers: { "Accept-Language": "en-US", "User-Agent": "Mozilla/5.0" } });
+    const re = /"videoRenderer":\{"videoId":"([\w-]{11})"/g;
+    let m;
+    while ((m = re.exec(html))) {
+      const chunk = html.slice(m.index, m.index + 6000);
+      if (/LIVE_NOW|"style":"LIVE"|"label":"LIVE"/.test(chunk)) found.set(m[1], "channel");
+    }
+  } catch (e) { console.log("YouTube channel page:", e.message); }
+  // 2. Streams Canal Park's ship-schedule page embeds.
+  try {
+    const html = await getText("https://canalpark.com/duluth-ship-schedule/", { headers: { "User-Agent": "Mozilla/5.0" } });
+    for (const m of html.matchAll(/youtube(?:-nocookie)?\.com\/embed\/([\w-]{11})/g)) if (!found.has(m[1])) found.set(m[1], "canalpark");
+  } catch (e) { console.log("Canal Park page:", e.message); }
+  // 3. The app's built-in cameras (from js/config.js).
+  const defaults = [...(await readFile("js/config.js", "utf8")).matchAll(/youtube:\s*"([\w-]{11})"/g)].map((m) => m[1]);
+  for (const id of defaults) if (!found.has(id)) found.set(id, "default");
+
+  const cams = [], checked = {};
+  for (const [id, from] of found) {
+    let r;
+    try { r = await checkVideo(id); } catch (e) { r = { ok: false, status: e.message }; }
+    checked[id] = r.ok ? { ok: true, title: r.title } : { ok: false, status: r.status };
+    console.log(`Camera ${id} (${from}): ${r.ok ? `OK · ${r.title} · ${r.author}` : `NOT PLAYABLE (${r.status})`}`);
+    if (r.ok && from !== "default") cams.push({ youtube: id, title: r.title.replace(/\s+/g, " ").trim(), from });
   }
-  return { updated: now(), cams };
+  return { updated: now(), cams, checked };
 }
 
 // --- Posted schedule --------------------------------------------------------------

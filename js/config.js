@@ -10,11 +10,10 @@ window.CANAL_CONFIG = {
   // Live cameras. Each one is a YouTube stream from Duluth Harbor Cam.
   // To add one: open the stream on YouTube, copy the link, and use the
   // "Manage cameras" button in the app (no file editing needed).
-  // "channel" entries always show that channel's current featured live stream.
+  // The background updater also checks these with YouTube every run, hides
+  // any that stop playing, and adds the streams that are live right now.
   cameras: [
-    { title: "Duluth Harbor Cam — featured live", channel: "UCzkaQrI9-nSv373EvK5p0SQ", spot: "none" },
     { title: "Canal Cam", youtube: "HPS48TMmNag" },
-    { title: "Ship Cam at Canal Park", youtube: "f0YRWpQTxNU" },
   ],
   cameraChannelPage: "https://www.youtube.com/@DuluthHarborCam1/streams",
 

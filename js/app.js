@@ -49,15 +49,17 @@ function tickClock() {
 
 // ---------- cameras ----------
 let liveCams = [];
-const camList = () => store.get("cameras", CFG.cameras);
+let camChecks = {}; // YouTube's answer for each video: playable or not
+const playable = (c) => !c.youtube || camChecks[c.youtube]?.ok !== false;
+const camList = () => store.get("cameras", CFG.cameras).filter((c) => !c.channel);
 function camSrc(c) {
   if (c.channel) return `https://www.youtube.com/embed/live_stream?channel=${c.channel}&autoplay=1&mute=1&playsinline=1`;
   return `https://www.youtube-nocookie.com/embed/${c.youtube}?autoplay=1&mute=1&playsinline=1&rel=0`;
 }
 function allCams() {
-  const mine = camList();
-  const ids = new Set(mine.map((c) => c.youtube || c.channel));
-  return [...mine, ...liveCams.filter((c) => !ids.has(c.youtube)).map((c) => ({ ...c, auto: true }))];
+  const mine = camList().filter(playable);
+  const ids = new Set(mine.map((c) => c.youtube));
+  return [...mine, ...liveCams.filter((c) => !ids.has(c.youtube)).map((c) => ({ ...c, auto: c.from === "channel" }))];
 }
 // Which mapped camera spot does a camera stream belong to?
 function spotFor(cam) {
@@ -109,7 +111,7 @@ function renderCams() {
   const cams = allCams();
   const picks = store.get("camPicks", [0, 1, 2, 3]);
   grid.innerHTML = "";
-  for (let i = 0; i < layout; i++) {
+  for (let i = 0; i < Math.min(layout, cams.length); i++) {
     const idx = Math.min(picks[i] ?? i, cams.length - 1);
     const cam = cams[idx] || cams[0];
     if (!cam) break;
@@ -131,7 +133,8 @@ function parseYouTube(url) {
 function renderCamDialog() {
   $("#camChannelLink").href = CFG.cameraChannelPage;
   const cams = camList();
-  $("#camList").innerHTML = cams.map((c, i) => `<li><span>${esc(c.title)}</span><button class="btn small" data-i="${i}">Remove</button></li>`).join("");
+  $("#camList").innerHTML = cams.map((c, i) => `<li><span>${esc(c.title)}${playable(c) ? "" : ` <span class="muted">(not playing right now, hidden)</span>`}</span><button class="btn small" data-i="${i}">Remove</button></li>`).join("")
+    + liveCams.map((c) => `<li><span>${esc(c.title)} <span class="muted">(found automatically)</span></span></li>`).join("");
   $$("#camList button").forEach((b) => (b.onclick = () => { const c = camList(); c.splice(+b.dataset.i, 1); store.set("cameras", c); renderCamDialog(); renderCams(); }));
 }
 function initCams() {
@@ -149,7 +152,7 @@ function initCams() {
   };
   $("#camReset").onclick = () => { store.set("cameras", CFG.cameras); store.set("camPicks", [0, 1, 2, 3]); renderCamDialog(); renderCams(); };
   renderCams();
-  getJson("data/cams.json").then((d) => { liveCams = d.cams || []; if (liveCams.length) renderCams(); }).catch(() => {});
+  getJson("data/cams.json").then((d) => { liveCams = d.cams || []; camChecks = d.checked || {}; renderCams(); }).catch(() => {});
 }
 
 // ---------- marine radio ----------
