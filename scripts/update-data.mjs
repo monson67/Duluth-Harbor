@@ -11,6 +11,7 @@
 
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { WATCH_BOX, processUpdate, eventText, matchesFavorites } from "./harbor.mjs";
+import { fetchSchedule } from "./schedule.mjs";
 
 const OUT = process.env.OUT_DIR || "data";
 const LISTEN = Number(process.env.LISTEN_SECONDS || 150);
@@ -164,10 +165,18 @@ async function updateCams() {
   return { updated: now(), cams };
 }
 
+// --- Posted schedule (Canal Park) ---------------------------------------------
+const SCHEDULE_URL = "https://canalpark.com/duluth-ship-schedule/";
+async function updateSchedule() {
+  const sched = await fetchSchedule(SCHEDULE_URL, (u) => getText(u, { headers: { "User-Agent": "Mozilla/5.0 (Canal Park Visitor Center app)", Accept: "text/html" } }));
+  console.log(`Schedule: ${sched.rows.length} rows, columns: ${sched.header.join(" | ")}`);
+  return { updated: now(), source: SCHEDULE_URL, ...sched };
+}
+
 // --- Run everything ------------------------------------------------------------
 async function main() {
   await mkdir(OUT, { recursive: true });
-  const jobs = { "ships.json": updateShips, "current.json": updateCurrent, "lake.json": updateLake, "cams.json": updateCams };
+  const jobs = { "ships.json": updateShips, "current.json": updateCurrent, "lake.json": updateLake, "cams.json": updateCams, "schedule.json": updateSchedule };
   const results = await Promise.allSettled(Object.values(jobs).map((fn) => fn()));
   const names = Object.keys(jobs);
   for (let i = 0; i < names.length; i++) {

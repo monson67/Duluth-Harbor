@@ -58,11 +58,11 @@ window.CANAL_CONFIG = {
   // Extra info about well-known ships (usual cargo, photos, notes).
   fleetUrl: "config/fleet.json",
 
-  // Official / community schedule pages (opened in a new tab).
+  // Posted ship schedule. The updater copies Canal Park's schedule into the
+  // app; these links open the original pages in a new tab.
+  scheduleSource: { name: "Canal Park ship schedule", url: "https://canalpark.com/duluth-ship-schedule/" },
   scheduleLinks: [
-    { name: "Duluth Harbor Cam boat schedule", url: "https://www.duluthharborcam.com/p/boat-schedules.html" },
     { name: "Canal Park ship schedule", url: "https://canalpark.com/duluth-ship-schedule/" },
-    { name: "Lake Superior Marine Museum Assoc.", url: "https://lsmma.com/content.aspx?page_id=22&club_id=605134&module_id=524305" },
     { name: "VesselFinder — Port of Duluth", url: "https://www.vesselfinder.com/ports/USDLH001" },
   ],
 };

@@ -349,3 +349,10 @@ input[type="text"], input:not([type]), .sheet input:not([type="checkbox"]) {
 .ship-dlg .ship-photo { aspect-ratio: 16 / 9; margin-bottom: 10px; }
 
 .pill:empty { display: none; }
+
+/* Posted schedule */
+.sched-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 10px; }
+table.sched { width: 100%; border-collapse: collapse; font-size: .85rem; }
+table.sched th { text-align: left; background: var(--panel-2); padding: 7px 8px; white-space: nowrap; font-size: .75rem; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
+table.sched td { padding: 7px 8px; border-top: 1px solid var(--line); }
+table.sched tr.fav td { background: rgba(245, 179, 1, .14); font-weight: 600; }

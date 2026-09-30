@@ -89,3 +89,15 @@ test("far-off ship bound for Duluth is tracked, alert waits until it's close", a
   assert.equal(loadState({ length: 300, draught: 4.5 }).loaded, false);
   assert.equal(loadState({ length: 20, draught: 2 }), null);
 });
+
+test("schedule table is read from a page", async () => {
+  const { scheduleFromHtml } = await import("../scripts/schedule.mjs");
+  const html = `<html><table><tr><td>menu</td></tr></table>
+    <table class="sched"><thead><tr><th>Vessel</th><th>ETA</th><th>Status</th></tr></thead>
+    <tbody><tr><td>Edwin H. Gott</td><td>10/01 06:00</td><td>Arriving</td></tr>
+    <tr><td>Federal&nbsp;Sakura</td><td>10/01 &amp; later</td><td><b>Departing</b></td></tr></tbody></table></html>`;
+  const s = scheduleFromHtml(html);
+  assert.deepEqual(s.header, ["Vessel", "ETA", "Status"]);
+  assert.deepEqual(s.rows[1], ["Federal Sakura", "10/01 & later", "Departing"]);
+  assert.equal(scheduleFromHtml("<p>nothing</p>"), null);
+});

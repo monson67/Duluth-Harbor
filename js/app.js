@@ -409,7 +409,7 @@ function nextCandidates() {
 function renderNext() {
   const body = $("#nextBody");
   if (!shipData?.updated) {
-    body.innerHTML = `<div class="empty">Live ship tracking isn't turned on yet (see the README, step 3). Meanwhile, check the <a href="${CFG.scheduleLinks[0].url}" target="_blank" rel="noopener">posted schedule</a>.</div>`;
+    body.innerHTML = `<div class="empty">Live ship tracking isn't turned on yet (see the README, step 3). Meanwhile, check the <a href="${CFG.scheduleSource.url}" target="_blank" rel="noopener">posted schedule</a>.</div>`;
     return;
   }
   $("#nextAge").textContent = `updated ${ago(shipData.updated)}`;
@@ -417,7 +417,8 @@ function renderNext() {
   const duluth = all.filter((v) => (v.approachEntry || v.departEntry) === "duluth");
   const v = duluth[0] || all[0];
   if (!v) {
-    body.innerHTML = `<div class="empty">No big ships are heading for the canal right now. Ships at the docks and at anchor are listed under <i>Ship traffic</i>.</div>`;
+    body.innerHTML = `<div class="empty">No big ships are heading for the canal right now. Ships at the docks and at anchor are listed under <i>Ship traffic</i>, and the <button class="linkish" data-goto-sched>posted schedule</button> shows who's expected later.</div>`;
+    $("[data-goto-sched]", body).onclick = () => { shipTab = "schedule"; renderShips(); $(".ships").scrollIntoView({ behavior: "smooth" }); };
     return;
   }
   const entry = v.approachEntry || v.departEntry;
@@ -514,10 +515,7 @@ function eventRow(e) {
 function renderShips() {
   const body = $("#shipsBody");
   $$(".ships .tabs button").forEach((b) => b.classList.toggle("on", b.dataset.tab === shipTab));
-  if (shipTab === "schedule") {
-    body.innerHTML = `<p class="fine" style="margin-top:0">Posted schedules from the port community (open in a new tab):</p><ul class="links">${CFG.scheduleLinks.map((l) => `<li><a href="${l.url}" target="_blank" rel="noopener">${esc(l.name)}</a></li>`).join("")}</ul>`;
-    return;
-  }
+  if (shipTab === "schedule") { renderSchedule(body); return; }
   if (!shipData || !shipData.updated) {
     body.innerHTML = `<div class="empty">Live ship tracking isn't turned on yet.<br>See step 3 in the README to connect your free aisstream.io key.<br>Meanwhile, check the <button class="linkish" data-goto="schedule">official schedules</button>.</div>`;
     $("[data-goto]", body)?.addEventListener("click", () => { shipTab = "schedule"; renderShips(); });
@@ -547,6 +545,26 @@ function renderShips() {
   $$(".star", body).forEach((b) => (b.onclick = () => toggleFav(shipData.vessels[b.dataset.mmsi])));
   wireShipButtons(body);
 }
+// ---------- posted schedule (copied from Canal Park by the updater) ----------
+let schedule = null;
+function renderSchedule(body) {
+  const src = CFG.scheduleSource;
+  const links = `<p class="fine">Source: <a href="${src.url}" target="_blank" rel="noopener">${esc(src.name)}</a>. Posted times are estimates and change often.
+    Also see ${CFG.scheduleLinks.filter((l) => l.url !== src.url).map((l) => `<a href="${l.url}" target="_blank" rel="noopener">${esc(l.name)}</a>`).join(" · ")}.</p>`;
+  if (!schedule?.rows?.length) {
+    body.innerHTML = `<div class="empty">The posted schedule hasn't been copied into the app yet.<br><a href="${src.url}" target="_blank" rel="noopener">Open the Canal Park ship schedule</a></div>${links}`;
+    return;
+  }
+  const f = favs().map((x) => String(x).toUpperCase());
+  const fav = (row) => row.some((c) => f.includes(String(c).toUpperCase()));
+  body.innerHTML = `<p class="fine" style="margin-top:0">Copied from Canal Park ${ago(schedule.updated)}.</p>
+    <div class="sched-wrap"><table class="sched"><thead><tr>${schedule.header.map((h) => `<th>${esc(h)}</th>`).join("")}</tr></thead>
+    <tbody>${schedule.rows.map((r) => `<tr class="${fav(r) ? "fav" : ""}">${r.map((c) => `<td>${esc(c)}</td>`).join("")}</tr>`).join("")}</tbody></table></div>${links}`;
+}
+async function updateSchedule() {
+  try { schedule = await getJson("data/schedule.json"); if (shipTab === "schedule") renderShips(); } catch {}
+}
+
 async function updateShips() {
   try {
     shipData = await getJson(CFG.shipsDataUrl);
@@ -728,6 +746,7 @@ function init() {
   updateLake(); setInterval(updateLake, 15 * 60e3);
   updateSky(); setInterval(updateSky, 30 * 60e3);
   updateShips(); setInterval(updateShips, 2 * 60e3);
+  updateSchedule(); setInterval(updateSchedule, 15 * 60e3);
   $$(".ships .tabs button").forEach((b) => (b.onclick = () => { shipTab = b.dataset.tab; renderShips(); }));
   $("#showSmall").onchange = () => { renderShips(); renderMap(); };
   $$(".horn").forEach((b) => (b.onclick = () => {
