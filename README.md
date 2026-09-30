@@ -8,7 +8,12 @@ A web app that brings Canal Park in Duluth, MN to any phone or computer:
 - **Weather** from the National Weather Service: current conditions, the next few hours, alerts and the Duluth radar loop
 - **Ship traffic**: which ships are approaching, on the move or at anchor, a log of passages under the bridge, a live map, and links to the posted schedules
 - **Alerts** for arrivals and departures, or only your favorite ships (by name, MMSI/AIS number or IMO number)
-- **Extras**: lake water temperature and waves, harbor water level, sunrise/sunset and golden hour, moon phase, ship-horn salutes and foghorn sounds, and harbor facts
+- **Next ship at the bridge**: a live countdown to the next arrival or departure, with the ship's photo, length, flag, and usual cargo or loaded/empty status
+- **Ship & camera map**: the approximate view of each camera, so you can tell which ship you're looking at. Camera tiles label the ships in view, and "Watch on camera" jumps to the right stream.
+- **Ship profiles**: tap any ship name for a photo, specs, destination and links
+- **Lake conditions**: water temperature, waves, wind, harbor level, sunrise and sunset, golden hour, moonrise and moon phase
+- **Visitor center guide**: the bridge, ship types, horn signals (tap to hear each one), the current light, and ship-watching tips
+- **Extras**: harbor photo of the day, ship-horn salutes and foghorn sounds, and harbor facts
 
 ---
 
@@ -74,11 +79,14 @@ tap the bell 🔔, and choose **Turn on notifications** for alerts while the app
   The updater also tries to find the streams that are currently live and adds them to each camera's menu.
 - **Favorite ships in the app:** tap ☆ next to a ship, or add one in 🔔 settings.
 - **Favorite ships for closed-app alerts:** edit `config/alerts.json` on GitHub (pencil icon → **Commit changes**).
+- **Ship facts (usual cargo, fun notes, your own photos):** edit `config/fleet.json`. Ship broadcasts (AIS) don't include cargo, so this list fills the gap.
+- **Camera view areas on the map:** in `js/config.js` under `cameraSpots`. Each camera's position, direction (`bearing`), width (`fov`) and distance (`range`) are approximate. Nudge them if the "in view" labels don't match what you see.
 
 ## Good to know
 
 - **Ship alerts are approximate.** The updater checks about every 10 minutes (GitHub sometimes runs it late),
   so "approaching" alerts usually come 20–90 minutes before a ship reaches the canal, and "arrived"/"departed" alerts come shortly after.
+- **Ship photos** come from Wikimedia Commons when a matching photo exists, with credit shown on the photo. Lesser-known ships may show a drawing instead.
 - **The current light is our recreation** of the bridge's signal, based on USGS readings
   (positive = flowing out to the lake). It isn't the bridge's actual light.
 - **The radio stream** comes from Broadcastify, and a short ad may play first. This is fine for personal use.

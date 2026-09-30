@@ -1,7 +1,9 @@
 // Canal Park Virtual Visitor Center — main app.
 import { play } from "./sounds.js";
-import { sunTimes, moonPhase } from "./sky.js";
-import { ENTRIES, eventText, matchesFavorites, isCommercial } from "../scripts/harbor.mjs";
+import { sunTimes, moonPhase, moonTimes } from "./sky.js";
+import { GUIDE, FACTS } from "./guide.js";
+import { shipPhoto, photoOfTheDay } from "./photos.js";
+import { ENTRIES, eventText, matchesFavorites, isCommercial, loadState, flagOf, bearing, distanceNm } from "../scripts/harbor.mjs";
 
 const CFG = window.CANAL_CONFIG;
 const TZ = "America/Chicago";
@@ -57,6 +59,48 @@ function allCams() {
   const ids = new Set(mine.map((c) => c.youtube || c.channel));
   return [...mine, ...liveCams.filter((c) => !ids.has(c.youtube)).map((c) => ({ ...c, auto: true }))];
 }
+// Which mapped camera spot does a camera stream belong to?
+function spotFor(cam) {
+  if (cam.spot === "none") return null;
+  const spots = CFG.cameraSpots || [];
+  if (cam.spot) return spots.find((s) => s.key === cam.spot) || null;
+  return spots.find((s) => new RegExp(s.match, "i").test(cam.title || "")) || null;
+}
+const angleDiff = (a, b) => Math.abs(((a - b + 540) % 360) - 180);
+function inView(spot, v) {
+  if (!spot || v.lat == null) return false;
+  const d = distanceNm(spot.lat, spot.lon, v.lat, v.lon);
+  return d <= spot.range && (d < 0.05 || angleDiff(bearing(spot.lat, spot.lon, v.lat, v.lon), spot.bearing) <= spot.fov / 2);
+}
+function shipsInView(spot) {
+  if (!spot || !shipData?.vessels) return [];
+  return Object.values(shipData.vessels).filter((v) => isCommercial(v) && inView(spot, v))
+    .sort((a, b) => distanceNm(spot.lat, spot.lon, a.lat, a.lon) - distanceNm(spot.lat, spot.lon, b.lat, b.lon));
+}
+function updateCamBadges() {
+  $$("#camGrid .cam").forEach((tile) => {
+    const cam = allCams()[+tile.dataset.cam];
+    const box = tile.querySelector(".inview");
+    const list = cam ? shipsInView(spotFor(cam)).slice(0, 3) : [];
+    box.innerHTML = list.map((v) => `<span data-mmsi="${v.mmsi}" title="Tap for ship details">👁 ${esc(v.name || v.mmsi)}</span>`).join("");
+    $$("span", box).forEach((b) => (b.onclick = () => openShip(b.dataset.mmsi)));
+  });
+}
+// Put a ship's best camera in the first tile.
+function watchOnCamera(mmsi) {
+  const v = shipData?.vessels?.[mmsi];
+  if (!v) return;
+  const cams = allCams();
+  const idx = cams.findIndex((c) => inView(spotFor(c), v));
+  if (idx < 0) { toast("No camera sees that ship right now", "Try again when it's closer to the canal."); return; }
+  const picks = store.get("camPicks", [0, 1, 2, 3]);
+  picks[0] = idx; store.set("camPicks", picks);
+  renderCams();
+  $("#shipDialog").open && $("#shipDialog").close();
+  const tile = $("#camGrid .cam");
+  tile.scrollIntoView({ behavior: "smooth", block: "center" });
+  tile.classList.add("flash-focus"); setTimeout(() => tile.classList.remove("flash-focus"), 2500);
+}
 function renderCams() {
   const layout = store.get("camLayout", 2);
   const grid = $("#camGrid");
@@ -71,12 +115,14 @@ function renderCams() {
     if (!cam) break;
     const tile = document.createElement("div");
     tile.className = "cam";
+    tile.dataset.cam = cams.indexOf(cam);
     const opts = cams.map((c, j) => `<option value="${j}" ${j === idx ? "selected" : ""}>${esc(c.title)}${c.auto ? " (live now)" : ""}</option>`).join("");
     tile.innerHTML = `<select aria-label="Choose camera">${opts}</select>
-      <iframe src="${camSrc(cam)}" title="${esc(cam.title)}" allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowfullscreen loading="lazy"></iframe>`;
+      <iframe src="${camSrc(cam)}" title="${esc(cam.title)}" allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowfullscreen loading="lazy"></iframe><div class="inview"></div>`;
     tile.querySelector("select").onchange = (e) => { picks[i] = +e.target.value; store.set("camPicks", picks); renderCams(); };
     grid.append(tile);
   }
+  updateCamBadges();
 }
 function parseYouTube(url) {
   const m = String(url).match(/(?:v=|youtu\.be\/|\/live\/|\/embed\/|\/shorts\/)([\w-]{11})/) || String(url).match(/^([\w-]{11})$/);
@@ -246,45 +292,55 @@ async function updateWeather() {
   $("#radarImg").src = `${CFG.weather.radarLoop}?t=${Math.floor(Date.now() / 300000)}`;
 }
 
-// ---------- lake ----------
+// ---------- lake conditions ----------
+const stat = (k, v, sub = "") => `<div class="stat"><div class="k">${esc(k)}</div><div class="v">${esc(v)}</div><div class="s">${esc(sub)}</div></div>`;
 async function updateLake() {
   const stats = [];
-  const add = (k, v, s = "") => v != null && stats.push({ k, v, s });
+  let newest = null;
+  const fresh = (t) => t && Date.now() - new Date(t) < 36 * 3600e3;
   try {
     const d = await getJson("data/lake.json");
-    const buoy = d.stations["45028"] || d.stations["45027"];
-    const canal = d.stations.DULM5;
-    if (buoy?.waterC != null) add("Lake water", `${Math.round(cToF(buoy.waterC))}°F`, buoy.name);
-    if (buoy?.waveM != null) add("Waves", `${(buoy.waveM * 3.281).toFixed(1)} ft`, buoy.wavePeriodS ? `every ${buoy.wavePeriodS} s` : buoy.name);
-    const w = canal?.windMs != null ? canal : buoy;
-    if (w?.windMs != null) add("Wind at canal", `${Math.round(w.windMs * 1.94384)} kn`, `${compass(w.windDirDeg)}${w.gustMs ? `, gusts ${Math.round(w.gustMs * 1.94384)}` : ""}`);
-    if (canal?.airC != null) add("Air at canal", `${Math.round(cToF(canal.airC))}°F`, "Duluth pier station");
+    const st = d.stations || {};
+    const buoy = [st["45028"], st["45027"]].find((b) => fresh(b?.time));
+    const canal = st.DULM5;
+    if (buoy?.waterC != null) stats.push(stat("Lake water", `${Math.round(cToF(buoy.waterC))}°F`, buoy.name));
+    if (buoy?.waveM != null) stats.push(stat("Waves", `${(buoy.waveM * 3.281).toFixed(1)} ft`, buoy.wavePeriodS ? `every ${buoy.wavePeriodS} seconds` : buoy.name));
+    if (!buoy && (st["45028"] || st["45027"])) stats.push(stat("Lake buoys", "Off season", "back in spring"));
+    const w = fresh(canal?.time) && canal?.windMs != null ? canal : buoy;
+    if (w?.windMs != null) stats.push(stat("Wind at canal", `${Math.round(w.windMs * 1.94384)} kn`, `from ${compass(w.windDirDeg)}${w.gustMs ? `, gusts ${Math.round(w.gustMs * 1.94384)}` : ""}`));
+    if (fresh(canal?.time) && canal?.airC != null) stats.push(stat("Air at canal", `${Math.round(cToF(canal.airC))}°F`, "Duluth pier station"));
+    if (fresh(canal?.time) && canal?.waterC != null && !(buoy?.waterC != null)) stats.push(stat("Water at canal", `${Math.round(cToF(canal.waterC))}°F`, "Duluth pier station"));
+    newest = buoy?.time || canal?.time;
   } catch {}
+  const coops = (product, extra = "") => getJson(`https://api.tidesandcurrents.noaa.gov/api/prod/datagetter?date=latest&station=${CFG.noaaWaterStation}&product=${product}${extra}&units=english&time_zone=gmt&format=json&application=canal_park_visitor_center`);
+  if (!stats.some((x) => /water/i.test(x))) {
+    try { const v = (await coops("water_temperature")).data?.[0]; if (v) stats.unshift(stat("Harbor water", `${Math.round(+v.v)}°F`, "NOAA Duluth gauge")); } catch {}
+  }
   try {
-    const d = await getJson(`https://api.tidesandcurrents.noaa.gov/api/prod/datagetter?date=latest&station=${CFG.noaaWaterStation}&product=water_level&datum=IGLD&units=english&time_zone=gmt&format=json&application=canal_park_visitor_center`);
-    const v = d.data?.[0];
-    if (v) add("Harbor level", `${(+v.v).toFixed(2)} ft`, "above IGLD 1985 datum");
+    const v = (await coops("water_level", "&datum=IGLD")).data?.[0];
+    if (v) stats.push(stat("Harbor level", `${(+v.v).toFixed(2)} ft`, "above the IGLD 1985 datum"));
   } catch {}
-  $("#lakeStats").innerHTML = stats.length
-    ? stats.map((s) => `<div class="stat"><div class="k">${esc(s.k)}</div><div class="v">${esc(s.v)}</div><div class="s">${esc(s.s)}</div></div>`).join("")
-    : `<div class="empty">Lake data isn't available yet.</div>`;
+  $("#lakeStats").innerHTML = stats.join("") || `<div class="empty">Lake readings aren't available right now.</div>`;
+  $("#lakeAge").textContent = newest ? `buoys ${ago(newest)}` : "";
 }
 
-// ---------- sun & moon ----------
 function updateSky() {
   const { lat, lon } = CFG.location;
   const now = new Date();
   const s = sunTimes(now, lat, lon);
   const m = moonPhase(now);
+  const mt = moonTimes(new Date(now - 3 * 3600e3), lat, lon);
   const len = s.sunrise && s.sunset ? (s.sunset - s.sunrise) / 3600000 : 0;
+  const t = (d) => (d ? fmtTime(d) : "—");
   const items = [
-    ["Sunrise", s.sunrise ? fmtTime(s.sunrise) : "—", s.dawn ? `first light ${fmtTime(s.dawn)}` : ""],
-    ["Sunset", s.sunset ? fmtTime(s.sunset) : "—", s.dusk ? `last light ${fmtTime(s.dusk)}` : ""],
-    ["Golden hour", s.goldenStart ? fmtTime(s.goldenStart) : "—", "best bridge photos"],
-    ["Daylight", `${Math.floor(len)}h ${Math.round((len % 1) * 60)}m`, ""],
-    ["Moon", `${m.icon} ${Math.round(m.illum * 100)}%`, m.name],
+    stat("Sunrise", t(s.sunrise), s.dawn ? `first light ${fmtTime(s.dawn)}` : ""),
+    stat("Sunset", t(s.sunset), s.dusk ? `last light ${fmtTime(s.dusk)}` : ""),
+    stat("Golden hour", t(s.goldenStart), "best bridge photos"),
+    stat("Daylight", `${Math.floor(len)}h ${Math.round((len % 1) * 60)}m`, ""),
+    stat("Moonrise", t(mt.rise), mt.set ? `moonset ${fmtTime(mt.set)}` : ""),
+    stat("Moon", `${m.icon} ${Math.round(m.illum * 100)}%`, m.daysToFull < 1.5 ? "Full moon tonight!" : m.name),
   ];
-  $("#skyStats").innerHTML = items.map(([k, v, sub]) => `<div class="stat"><div class="k">${k}</div><div class="v">${v}</div><div class="s">${sub}</div></div>`).join("");
+  $("#skyStats").innerHTML = items.join("");
 }
 
 // ---------- ships ----------
@@ -297,12 +353,142 @@ function toggleFav(v) {
   const i = f.findIndex((x) => String(x).toUpperCase() === String(v.name || v.mmsi).toUpperCase() || String(x) === String(v.mmsi));
   if (i >= 0) f.splice(i, 1); else f.push(v.name || String(v.mmsi));
   store.set("favorites", f);
-  renderShips(); renderFavs();
+  renderShips(); renderFavs(); renderNext();
 }
 const shipLink = (v) => `https://www.marinetraffic.com/en/ais/details/ships/mmsi:${v.mmsi}`;
+let fleet = {};
+const fleetInfo = (v) => fleet[(v?.name || "").toUpperCase()] || fleet[String(v?.mmsi)] || {};
+function cargoText(v) {
+  const f = fleetInfo(v), load = loadState(v);
+  const parts = [];
+  if (f.cargo) parts.push(`Usually carries: ${f.cargo}`);
+  if (load) parts.push(load.text);
+  if (!parts.length && v.typeName === "Tanker") parts.push("Liquid cargo (tanker)");
+  return parts.join(". ");
+}
+const PASSAGE_MS = (v) => new Date(v.lastSeen || shipData?.updated || Date.now()).getTime() + (v.etaMinutes || 0) * 60000;
+function countdown(ms) {
+  const m = Math.round((ms - Date.now()) / 60000);
+  if (m <= 1) return "any minute";
+  if (m < 60) return `${m} min`;
+  return `${Math.floor(m / 60)} hr ${m % 60} min`;
+}
+const SHIP_SVG = `<svg viewBox="0 0 120 50" fill="currentColor" aria-hidden="true"><path d="M4 30h112l-10 14H14z"/><rect x="90" y="14" width="18" height="16" rx="2"/><rect x="95" y="6" width="6" height="8"/><rect x="14" y="24" width="72" height="6"/></svg>`;
+function photoHtml(v, big = false) {
+  const f = fleetInfo(v);
+  const id = `ph-${v.mmsi}-${big ? "b" : "s"}`;
+  if (f.photo) return `<div class="ship-photo"><img src="${esc(f.photo)}" alt="${esc(v.name)}"><div class="credit">${esc(f.photoCredit || "")}</div></div>`;
+  setTimeout(async () => {
+    const p = v.name ? await shipPhoto(v.name) : null;
+    const box = document.getElementById(id);
+    if (!box) return;
+    box.innerHTML = p
+      ? `<img src="${esc(p.url)}" alt="${esc(v.name)}" loading="lazy"><div class="credit"><a href="${esc(p.page)}" target="_blank" rel="noopener">Photo: ${esc(p.artist || "Wikimedia Commons")}${p.license ? ` · ${esc(p.license)}` : ""}</a></div>`
+      : `${SHIP_SVG}<div class="credit">No photo found. <a href="https://www.google.com/search?tbm=isch&q=${encodeURIComponent(`"${v.name}" ship`)}" target="_blank" rel="noopener">Search images</a></div>`;
+  });
+  return `<div class="ship-photo" id="${id}">${SHIP_SVG}</div>`;
+}
+function factsList(v) {
+  const flag = flagOf(v.mmsi);
+  const rows = [
+    ["Length", ft(v.length)], ["Width", ft(v.beam)], ["Type", v.typeName],
+    ["Flag", flag ? `${flag.country}${flag.lakes ? "" : " (a \"saltie\")"}` : ""],
+    ["Destination", v.destination], ["Speed", v.sog != null ? `${v.sog.toFixed(1)} knots` : ""],
+    ["Cargo", cargoText(v)], ["AIS / MMSI", v.mmsi], ["IMO", v.imo],
+  ].filter(([, x]) => x);
+  return `<dl class="facts-list">${rows.map(([k, x]) => `<div><dt>${k}</dt><dd>${esc(x)}</dd></div>`).join("")}</dl>`;
+}
+
+// ---------- next ship card ----------
+function nextCandidates() {
+  if (!shipData?.vessels) return [];
+  return Object.values(shipData.vessels)
+    .filter((v) => isCommercial(v) && (v.approachEntry || v.departEntry) && v.etaMinutes != null)
+    .sort((a, b) => PASSAGE_MS(a) - PASSAGE_MS(b));
+}
+function renderNext() {
+  const body = $("#nextBody");
+  if (!shipData?.updated) {
+    body.innerHTML = `<div class="empty">Live ship tracking isn't turned on yet (see the README, step 3). Meanwhile, check the <a href="${CFG.scheduleLinks[0].url}" target="_blank" rel="noopener">posted schedule</a>.</div>`;
+    return;
+  }
+  $("#nextAge").textContent = `updated ${ago(shipData.updated)}`;
+  const all = nextCandidates();
+  const duluth = all.filter((v) => (v.approachEntry || v.departEntry) === "duluth");
+  const v = duluth[0] || all[0];
+  if (!v) {
+    body.innerHTML = `<div class="empty">No big ships are heading for the canal right now. Ships at the docks and at anchor are listed under <i>Ship traffic</i>.</div>`;
+    return;
+  }
+  const entry = v.approachEntry || v.departEntry;
+  const inbound = !!v.approachEntry;
+  const when = PASSAGE_MS(v);
+  const f = fleetInfo(v);
+  const others = all.filter((x) => x !== v).slice(0, 4);
+  body.innerHTML = `<div class="next-card">
+      ${photoHtml(v, true)}
+      <div class="next-info">
+        <span class="tag ${inbound ? "in" : "out"}">${inbound ? "Arriving" : "Departing"} · ${esc(ENTRIES[entry].name)}</span>
+        <h3><button data-open="${v.mmsi}">${esc(v.name || "MMSI " + v.mmsi)}</button>${isFav(v) ? " ★" : ""}</h3>
+        <div class="countdown"><span class="big" id="nextCountdown">${countdown(when)}</span>
+          <span class="muted">estimated ${entry === "duluth" ? "under the bridge" : "at the Superior Entry"} around <b>${fmtTime(when)}</b></span></div>
+        ${factsList(v)}
+        ${f.note ? `<p class="note">${esc(f.note)}</p>` : ""}
+        <div class="row-actions">
+          ${allCams().some((c) => inView(spotFor(c), v)) ? `<button class="btn small" data-watch="${v.mmsi}">📷 Watch on camera</button>` : ""}
+          <button class="btn small" data-open="${v.mmsi}">Ship details</button>
+          <button class="btn small" data-fav="${v.mmsi}">${isFav(v) ? "★ Favorite" : "☆ Favorite"}</button>
+        </div>
+      </div>
+    </div>
+    ${entry !== "duluth" ? `<p class="fine">No ships are headed for the Duluth canal right now. This one is using the Superior Entry, so it won't pass under the Aerial Lift Bridge.</p>` : ""}
+    ${others.length ? `<div><div class="fine" style="margin:0 0 4px">Also coming up:</div><ul class="later">${others.map((o) => `<li><button data-open="${o.mmsi}">${esc(o.name || o.mmsi)} · ${o.approachEntry ? "in" : "out"} ${fmtTime(PASSAGE_MS(o))}${(o.approachEntry || o.departEntry) === "superior" ? " (Superior)" : ""}</button></li>`).join("")}</ul></div>` : ""}
+    <p class="fine" style="margin-top:0">Estimate from the ship's current speed and position. Ships often slow down, wait at anchor or change plans.</p>`;
+  wireShipButtons(body);
+}
+function tickNext() {
+  const el = $("#nextCountdown"), v = nextCandidates().find((x) => (x.approachEntry || x.departEntry) === "duluth") || nextCandidates()[0];
+  if (el && v) el.textContent = countdown(PASSAGE_MS(v));
+}
+function wireShipButtons(root) {
+  $$("[data-open]", root).forEach((b) => (b.onclick = () => openShip(b.dataset.open)));
+  $$("[data-watch]", root).forEach((b) => (b.onclick = () => watchOnCamera(b.dataset.watch)));
+  $$("[data-fav]", root).forEach((b) => (b.onclick = () => toggleFav(shipData.vessels[b.dataset.fav])));
+}
+
+// ---------- ship profile ----------
+function openShip(mmsi) {
+  const v = shipData?.vessels?.[mmsi];
+  if (!v) return;
+  const f = fleetInfo(v);
+  const cams = allCams().filter((c) => inView(spotFor(c), v));
+  $("#shipDlgTitle").textContent = v.name || `MMSI ${v.mmsi}`;
+  $("#shipDlgBody").innerHTML = `<div class="ship-dlg">
+      ${photoHtml(v, false)}
+      <p><b>${esc(v.status || "")}</b>${v.etaMinutes != null ? `: about ${countdown(PASSAGE_MS(v))} to the ${esc(ENTRIES[v.approachEntry || v.departEntry]?.name || "entry")} (${fmtTime(PASSAGE_MS(v))})` : ""}.
+        ${v.canalDistanceNm != null ? `${v.canalDistanceNm.toFixed(1)} nautical miles from the Lift Bridge.` : ""} Last heard ${ago(v.lastSeen)}.</p>
+      ${factsList(v)}
+      ${f.note ? `<p class="note">${esc(f.note)}</p>` : ""}
+      ${v.lastCanalPassage ? `<p class="fine">Last passed under the bridge ${v.lastCanalPassage.direction} at ${fmtTime(v.lastCanalPassage.time)}, ${fmtDay(v.lastCanalPassage.time)}.</p>` : ""}
+      <div class="row-actions">
+        ${cams.length ? `<button class="btn small" data-watch="${v.mmsi}">📷 Watch on ${esc(cams[0].title)}</button>` : ""}
+        <button class="btn small" data-fav="${v.mmsi}">${isFav(v) ? "★ Favorite" : "☆ Add to favorites"}</button>
+        <button class="btn small" data-mapto="${v.mmsi}">🗺 Show on map</button>
+      </div>
+      <p class="fine">More: <a href="${shipLink(v)}" target="_blank" rel="noopener">MarineTraffic</a> ·
+        <a href="https://www.vesselfinder.com/vessels/details/${v.imo || v.mmsi}" target="_blank" rel="noopener">VesselFinder</a> ·
+        <a href="https://www.google.com/search?q=${encodeURIComponent(`"${v.name}" boatnerd`)}" target="_blank" rel="noopener">BoatNerd</a></p>
+    </div>`;
+  const body = $("#shipDlgBody");
+  wireShipButtons(body);
+  $$("[data-fav]", body).forEach((b) => (b.onclick = () => { toggleFav(v); openShip(mmsi); }));
+  $$("[data-mapto]", body).forEach((b) => (b.onclick = () => { $("#shipDialog").close(); focusMap(v); }));
+  if (!$("#shipDialog").open) $("#shipDialog").showModal();
+}
 const tagFor = (v) => {
   if (v.approachEntry) return `<span class="tag in">Inbound</span>`;
   if (/anchor/i.test(v.status)) return `<span class="tag anchor">Anchored</span>`;
+  if (v.departEntry) return `<span class="tag out">Outbound</span>`;
   if (v.status === "Underway in harbor") return `<span class="tag out">Moving</span>`;
   return "";
 };
@@ -313,7 +499,7 @@ function shipRow(v) {
   const bits = [v.typeName, ft(v.length), v.destination && `→ ${v.destination}`, v.sog >= 0.5 && `${v.sog.toFixed(1)} kn`, `seen ${ago(v.lastSeen)}`].filter(Boolean);
   return `<li class="ship">
     <button class="star ${isFav(v) ? "on" : ""}" data-mmsi="${v.mmsi}" aria-label="Favorite ${esc(v.name)}">${isFav(v) ? "★" : "☆"}</button>
-    <div class="name"><a href="${shipLink(v)}" target="_blank" rel="noopener">${esc(v.name || "MMSI " + v.mmsi)}</a></div>
+    <div class="name"><button class="linkish" data-open="${v.mmsi}">${esc(v.name || "MMSI " + v.mmsi)}</button></div>
     <div class="when">${when}</div>
     <div class="meta">${tagFor(v)}${esc(v.status || "")} · ${esc(bits.join(" · "))}</div>
   </li>`;
@@ -322,12 +508,12 @@ function eventRow(e) {
   const t = eventText(e);
   const inbound = e.type === "approaching" || e.type === "arrived";
   return `<li class="ship"><span>${inbound ? "⬇️" : "⬆️"}</span>
-    <div class="name">${esc(e.name)}</div><div class="when">${fmtTime(e.time)}<small>${esc(fmtDay(e.time))}</small></div>
+    <div class="name">${shipData?.vessels?.[e.mmsi] ? `<button class="linkish" data-open="${e.mmsi}">${esc(e.name)}</button>` : esc(e.name)}</div><div class="when">${fmtTime(e.time)}<small>${esc(fmtDay(e.time))}</small></div>
     <div class="meta"><span class="tag ${inbound ? "in" : "out"}">${esc(e.type)}</span>${esc(t.body)}</div></li>`;
 }
 function renderShips() {
   const body = $("#shipsBody");
-  $$(".tabs button").forEach((b) => b.classList.toggle("on", b.dataset.tab === shipTab));
+  $$(".ships .tabs button").forEach((b) => b.classList.toggle("on", b.dataset.tab === shipTab));
   if (shipTab === "schedule") {
     body.innerHTML = `<p class="fine" style="margin-top:0">Posted schedules from the port community (open in a new tab):</p><ul class="links">${CFG.scheduleLinks.map((l) => `<li><a href="${l.url}" target="_blank" rel="noopener">${esc(l.name)}</a></li>`).join("")}</ul>`;
     return;
@@ -342,11 +528,12 @@ function renderShips() {
   let html = "";
   if (shipTab === "coming") {
     const coming = vessels.filter((v) => v.approachEntry).sort((a, b) => a.etaMinutes - b.etaMinutes);
+    const leaving = vessels.filter((v) => v.departEntry).sort((a, b) => a.etaMinutes - b.etaMinutes);
     const moving = vessels.filter((v) => v.status === "Underway in harbor");
     const anchored = vessels.filter((v) => /anchor/i.test(v.status));
     const recent = (shipData.events || []).filter((e) => Date.now() - new Date(e.time) < 6 * 3600e3 && (e.type === "arrived" || e.type === "departed")).slice(0, 6);
     const sec = (title, list, fn) => list.length ? `<h3>${title}</h3><ul class="ship-list">${list.map(fn).join("")}</ul>` : "";
-    html = sec("Heading for the harbor", coming, shipRow) + sec("On the move in the harbor", moving, shipRow) +
+    html = sec("Heading for the harbor", coming, shipRow) + sec("Heading out", leaving, shipRow) + sec("On the move in the harbor", moving, shipRow) +
       sec("Waiting at anchor", anchored, shipRow) + sec("Recently passed through", recent, eventRow);
     if (!html) html = `<div class="empty">No big ships on the move right now. Check "All nearby" to see who's at the docks.</div>`;
   } else if (shipTab === "all") {
@@ -358,6 +545,7 @@ function renderShips() {
   }
   body.innerHTML = html;
   $$(".star", body).forEach((b) => (b.onclick = () => toggleFav(shipData.vessels[b.dataset.mmsi])));
+  wireShipButtons(body);
 }
 async function updateShips() {
   try {
@@ -366,7 +554,9 @@ async function updateShips() {
     checkEvents(shipData.events || []);
   } catch { $("#shipsAge").textContent = "offline"; }
   renderShips();
+  renderNext();
   renderMap();
+  updateCamBadges();
 }
 
 // ---------- alerts ----------
@@ -432,16 +622,42 @@ function initSettings() {
 }
 
 // ---------- map ----------
-let map, shipLayer;
-const COLORS = { approach: "#ff8a00", harbor: "#1e88e5", dock: "#8a99a8", anchor: "#e0b000", lake: "#16a3a3" };
+let map, shipLayer, coneLayer;
+const markers = {};
+const COLORS = { approach: "#ff8a00", depart: "#9c27b0", harbor: "#1e88e5", dock: "#8a99a8", anchor: "#e0b000", lake: "#16a3a3" };
+function offset(lat, lon, brg, nm) {
+  const r = nm / 3440.065, b = (brg * Math.PI) / 180, p1 = (lat * Math.PI) / 180, l1 = (lon * Math.PI) / 180;
+  const p2 = Math.asin(Math.sin(p1) * Math.cos(r) + Math.cos(p1) * Math.sin(r) * Math.cos(b));
+  const l2 = l1 + Math.atan2(Math.sin(b) * Math.sin(r) * Math.cos(p1), Math.cos(r) - Math.sin(p1) * Math.sin(p2));
+  return [(p2 * 180) / Math.PI, (l2 * 180) / Math.PI];
+}
+function drawCones() {
+  if (!coneLayer) return;
+  coneLayer.clearLayers();
+  if (!$("#showCones").checked) return;
+  const cams = allCams();
+  for (const spot of CFG.cameraSpots || []) {
+    const pts = [[spot.lat, spot.lon]];
+    for (let a = -spot.fov / 2; a <= spot.fov / 2; a += spot.fov / 12) pts.push(offset(spot.lat, spot.lon, spot.bearing + a, spot.range));
+    const camIdx = cams.findIndex((c) => spotFor(c) === spot);
+    const poly = L.polygon(pts, { color: "#4fb3e8", weight: 1, fillOpacity: 0.12, interactive: true }).addTo(coneLayer);
+    const n = shipsInView(spot).length;
+    poly.bindTooltip(`${spot.name}${n ? ` · ${n} ship${n > 1 ? "s" : ""} in view` : ""}${camIdx < 0 ? " (not in your camera list)" : ""}`, { sticky: true });
+    if (camIdx >= 0) poly.on("click", () => { const picks = store.get("camPicks", [0, 1, 2, 3]); picks[0] = camIdx; store.set("camPicks", picks); renderCams(); $(".cams").scrollIntoView({ behavior: "smooth" }); });
+  }
+}
 function initMap() {
   if (!window.L) { $("#map").innerHTML = `<div class="empty">Map couldn't load.</div>`; return; }
   const { lat, lon } = CFG.location;
-  map = L.map("map", { scrollWheelZoom: false }).setView([lat - 0.02, lon + 0.02], 11);
+  map = L.map("map", { scrollWheelZoom: false }).setView([lat - 0.03, lon + 0.03], 11);
   L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 18, attribution: "© OpenStreetMap" }).addTo(map);
+  coneLayer = L.layerGroup().addTo(map);
   L.circleMarker([lat, lon], { radius: 6, color: "#d92d2d", fillOpacity: 1 }).addTo(map).bindTooltip("Aerial Lift Bridge");
   L.circleMarker([ENTRIES.superior.lat, ENTRIES.superior.lon], { radius: 5, color: "#555", fillOpacity: 1 }).addTo(map).bindTooltip("Superior Entry");
   shipLayer = L.layerGroup().addTo(map);
+  $("#showCones").onchange = drawCones;
+  drawCones();
+  map.on("popupopen", (e) => wireShipButtons(e.popup.getElement()));
 }
 function renderMap() {
   if (!map || !shipData?.vessels) return;
@@ -449,7 +665,7 @@ function renderMap() {
   const showSmall = $("#showSmall").checked;
   for (const v of Object.values(shipData.vessels)) {
     if (v.lat == null || !(showSmall || isCommercial(v) || isFav(v))) continue;
-    const kind = v.approachEntry ? "approach" : /anchor/i.test(v.status) ? "anchor" : v.status === "Underway in harbor" ? "harbor" : v.zone === "lake" ? "lake" : "dock";
+    const kind = v.approachEntry ? "approach" : v.departEntry ? "depart" : /anchor/i.test(v.status) ? "anchor" : v.status === "Underway in harbor" ? "harbor" : v.zone === "lake" ? "lake" : "dock";
     const moving = (v.sog || 0) >= 1;
     const rot = v.heading ?? v.cog ?? 0;
     const shape = moving ? `<path d="M11 1 L18 20 L11 16 L4 20 Z"/>` : `<circle cx="11" cy="11" r="6"/>`;
@@ -457,26 +673,44 @@ function renderMap() {
       className: "ship-marker", iconSize: [22, 22], iconAnchor: [11, 11],
       html: `<svg viewBox="0 0 22 22" style="transform:rotate(${moving ? rot : 0}deg)" fill="${COLORS[kind]}" stroke="#fff" stroke-width="1.5">${shape}</svg>`,
     });
-    L.marker([v.lat, v.lon], { icon, title: v.name }).addTo(shipLayer)
-      .bindPopup(`<b>${esc(v.name || v.mmsi)}</b>${isFav(v) ? " ★" : ""}<br>${esc(v.status || "")}<br>${esc([v.typeName, ft(v.length), v.sog != null && `${v.sog.toFixed(1)} kn`].filter(Boolean).join(" · "))}${v.destination ? `<br>Destination: ${esc(v.destination)}` : ""}${v.etaMinutes != null ? `<br>At the entry in ~${v.etaMinutes} min` : ""}<br><a href="${shipLink(v)}" target="_blank" rel="noopener">Ship details</a>`);
+    const seen = allCams().filter((c) => inView(spotFor(c), v));
+    markers[v.mmsi] = L.marker([v.lat, v.lon], { icon, title: v.name }).addTo(shipLayer)
+      .bindPopup(`<b>${esc(v.name || v.mmsi)}</b>${isFav(v) ? " ★" : ""}<br>${esc(v.status || "")}<br>${esc([v.typeName, ft(v.length), v.sog != null && `${v.sog.toFixed(1)} kn`].filter(Boolean).join(" · "))}${v.destination ? `<br>Destination: ${esc(v.destination)}` : ""}${v.etaMinutes != null ? `<br>At the entry around ${fmtTime(PASSAGE_MS(v))}` : ""}
+        ${seen.length ? `<br>👁 In view of ${esc(seen.map((c) => c.title).join(", "))}` : ""}
+        <br>${seen.length ? `<button class="btn small" data-watch="${v.mmsi}">📷 Watch</button> ` : ""}<button class="btn small" data-open="${v.mmsi}">Details</button>`);
   }
+  drawCones();
+}
+function focusMap(v) {
+  if (!map) return;
+  $(".mapbox").scrollIntoView({ behavior: "smooth", block: "center" });
+  map.setView([v.lat, v.lon], 13);
+  markers[v.mmsi]?.openPopup();
+}
+
+// ---------- guide & photo of the day ----------
+function initGuide() {
+  const show = (key) => {
+    $$("#guideTabs button").forEach((b) => b.classList.toggle("on", b.dataset.guide === key));
+    $("#guideBody").innerHTML = GUIDE[key];
+    store.set("guideTab", key);
+  };
+  $$("#guideTabs button").forEach((b) => (b.onclick = () => show(b.dataset.guide)));
+  $("#guideBody").addEventListener("click", (e) => { const b = e.target.closest("[data-horn]"); if (b) play(b.dataset.horn); });
+  show(store.get("guideTab", "bridge"));
+}
+async function updatePhoto() {
+  const box = $("#photoBox");
+  try {
+    const p = await photoOfTheDay();
+    if (!p) throw 0;
+    box.innerHTML = `<a href="${esc(p.page)}" target="_blank" rel="noopener"><img src="${esc(p.url)}" alt="${esc(p.caption || p.title)}" loading="lazy"></a>
+      <figcaption>${esc((p.caption || p.title.replace(/^File:|\.\w+$/g, "")).slice(0, 180))}${p.date ? ` · ${esc(p.date)}` : ""}<br>
+      Photo: ${esc(p.artist || "unknown")}${p.license ? ` · ${esc(p.license)}` : ""} · Wikimedia Commons</figcaption>`;
+  } catch { box.innerHTML = `<div class="empty">Today's photo couldn't load.</div>`; }
 }
 
 // ---------- facts ----------
-const FACTS = [
-  "The Aerial Lift Bridge opened in 1905 as a transporter bridge: a gondola carried people across the canal. It was rebuilt as a lift bridge in 1929–30.",
-  "The bridge's roadway span can rise about 135 feet to let ships pass underneath.",
-  "Ships and the bridge trade horn signals: a captain's long–short–short salute is answered by the bridge.",
-  "The Duluth–Superior harbor is the farthest-inland freshwater seaport in North America, roughly 2,300 miles from the Atlantic by the St. Lawrence Seaway.",
-  "The biggest Great Lakes freighters are 1,000 feet long, more than three football fields. They're too big to leave the Great Lakes.",
-  "Ocean-going ships that visit the Great Lakes are nicknamed \"salties\". Ships that stay on the lakes are \"lakers\".",
-  "The Duluth Ship Canal was dug through Minnesota Point in 1871, giving Duluth its own entry to the harbor.",
-  "Lake Superior holds about 10% of the world's fresh surface water, enough to cover North and South America a foot deep.",
-  "The canal current sloshes back and forth because of a seiche: the whole lake rocks like water in a bathtub.",
-  "Iron ore pellets from Minnesota's Iron Range are the port's biggest cargo, along with coal, grain and limestone.",
-  "Canal Park's lighthouses guard the entry: the South Breakwater Outer Light (1901) and the North Pier Light (1910).",
-  "The shipping season runs from late March to mid-January, when the Soo Locks close for winter maintenance.",
-];
 function showFact(step = 1) {
   const i = (store.get("fact", -1) + step + FACTS.length) % FACTS.length;
   store.set("fact", i);
@@ -486,13 +720,15 @@ function showFact(step = 1) {
 // ---------- start ----------
 function init() {
   tickClock(); setInterval(tickClock, 15000);
-  initCams(); initRadio(); initSettings(); initMap();
+  initCams(); initRadio(); initSettings(); initMap(); initGuide(); updatePhoto();
+  getJson(CFG.fleetUrl).then((d) => { fleet = d.ships || {}; renderNext(); }).catch(() => {});
+  setInterval(tickNext, 30e3);
   updateCurrent(); setInterval(updateCurrent, 5 * 60e3);
   updateWeather(); setInterval(updateWeather, 10 * 60e3);
   updateLake(); setInterval(updateLake, 15 * 60e3);
   updateSky(); setInterval(updateSky, 30 * 60e3);
   updateShips(); setInterval(updateShips, 2 * 60e3);
-  $$(".tabs button").forEach((b) => (b.onclick = () => { shipTab = b.dataset.tab; renderShips(); }));
+  $$(".ships .tabs button").forEach((b) => (b.onclick = () => { shipTab = b.dataset.tab; renderShips(); }));
   $("#showSmall").onchange = () => { renderShips(); renderMap(); };
   $$(".horn").forEach((b) => (b.onclick = () => {
     const r = play(b.dataset.horn);

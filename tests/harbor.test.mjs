@@ -74,3 +74,18 @@ test("favorites match by name, MMSI or IMO", () => {
   assert.ok(matchesFavorites(e, { imo: 7625952 }, ["7625952"]));
   assert.ok(!matchesFavorites(e, {}, ["ROGER BLOUGH", ""]));
 });
+
+test("far-off ship bound for Duluth is tracked, alert waits until it's close", async () => {
+  const { loadState, flagOf } = await import("../scripts/harbor.mjs");
+  const lat = 47.0, lon = -91.3; // ~35 nm out in the lake
+  const cog = bearing(lat, lon, ENTRIES.duluth.lat, ENTRIES.duluth.lon) + 20;
+  const s = processUpdate(null, [stat(316000002, "BAIE ST. PAUL"), pos(316000002, "BAIE ST. PAUL", lat, lon, 12, cog)], "2026-09-30T12:00:00Z");
+  const v = s.vessels["316000002"];
+  assert.equal(v.approachEntry, "duluth");
+  assert.ok(v.etaMinutes > 150, `eta ${v.etaMinutes}`);
+  assert.deepEqual(s.newEvents, [], "no alert ~3 hours out");
+  assert.equal(flagOf(v.mmsi).country, "Canada");
+  assert.equal(loadState({ length: 300, draught: 8.2 }).loaded, true);
+  assert.equal(loadState({ length: 300, draught: 4.5 }).loaded, false);
+  assert.equal(loadState({ length: 20, draught: 2 }), null);
+});

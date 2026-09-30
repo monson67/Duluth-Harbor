@@ -38,3 +38,31 @@ export function moonPhase(date) {
   const daysToFull = ((synodic / 2 - age) + synodic) % synodic;
   return { age, illum, name: names[idx], icon: icons[idx], daysToFull };
 }
+
+// Moon position (low-precision formulas, good to a few minutes for rise/set).
+function moonAltitude(date, lat, lon) {
+  const d = date.getTime() / 86400000 + 2440587.5 - 2451545;
+  const L = 218.316 + 13.176396 * d, M = 134.963 + 13.064993 * d, F = 93.272 + 13.22935 * d;
+  const eLon = (L + 6.289 * Math.sin(M * rad)) * rad;
+  const eLat = 5.128 * Math.sin(F * rad) * rad;
+  const e = 23.4397 * rad;
+  const ra = Math.atan2(Math.sin(eLon) * Math.cos(e) - Math.tan(eLat) * Math.sin(e), Math.cos(eLon));
+  const dec = Math.asin(Math.sin(eLat) * Math.cos(e) + Math.cos(eLat) * Math.sin(e) * Math.sin(eLon));
+  const sidereal = (280.16 + 360.9856235 * d + lon) * rad;
+  const H = sidereal - ra;
+  return Math.asin(Math.sin(lat * rad) * Math.sin(dec) + Math.cos(lat * rad) * Math.cos(dec) * Math.cos(H)) / rad;
+}
+
+// Next moonrise and moonset after `from`, searching up to 36 hours ahead.
+export function moonTimes(from, lat, lon) {
+  const h0 = 0.133, step = 10 * 60000;
+  let rise = null, set = null;
+  let t = from.getTime(), prev = moonAltitude(from, lat, lon) - h0;
+  for (let i = 0; i < 216 && !(rise && set); i++) {
+    const t2 = t + step, cur = moonAltitude(new Date(t2), lat, lon) - h0;
+    if (prev < 0 && cur >= 0 && !rise) rise = new Date(t + (step * -prev) / (cur - prev));
+    if (prev >= 0 && cur < 0 && !set) set = new Date(t + (step * prev) / (prev - cur));
+    t = t2; prev = cur;
+  }
+  return { rise, set };
+}

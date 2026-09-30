@@ -37,6 +37,12 @@
   <div id="weatherAlert" class="alert-banner" hidden></div>
 
   <main class="layout">
+    <!-- Next ship -->
+    <section class="panel next" aria-labelledby="nextTitle">
+      <div class="panel-head"><h2 id="nextTitle">Next ship at the bridge</h2><span class="pill" id="nextAge"></span></div>
+      <div id="nextBody" class="next-body"><div class="empty">Looking for ships…</div></div>
+    </section>
+
     <!-- Cameras -->
     <section class="panel cams" aria-labelledby="camsTitle">
       <div class="panel-head">
@@ -47,6 +53,7 @@
       </div>
       <div id="camGrid" class="cam-grid layout-2"></div>
       <p class="fine">Streams by <a href="https://www.duluthharborcam.com/" target="_blank" rel="noopener">Duluth Harbor Cam</a>.
+        Ship names under a camera are ships that should be in its view.
         <button class="linkish" id="manageCams">Manage cameras</button></p>
     </section>
 
@@ -93,10 +100,10 @@
         </div>
         <details class="legend"><summary>What do the lights mean?</summary>
           <ul>
-            <li><b class="t-red">Red</b> — water flowing <b>in</b> from the lake, ¾–1½ knots.</li>
-            <li><b class="t-amber">Amber</b> — neutral or weak current.</li>
-            <li><b class="t-green">Green</b> — water flowing <b>out</b> to the lake, ¾–1½ knots.</li>
-            <li><b>Flashing</b> red or green — faster than 1½ knots. Extra caution!</li>
+            <li><b class="t-red">Red</b>: water flowing <b>in</b> from the lake, ¾–1½ knots.</li>
+            <li><b class="t-amber">Amber</b>: neutral or weak current.</li>
+            <li><b class="t-green">Green</b>: water flowing <b>out</b> to the lake, ¾–1½ knots.</li>
+            <li><b>Flashing</b> red or green: faster than 1½ knots. Extra caution!</li>
           </ul>
           <p class="fine">Recreated here from the USGS canal sensor. It's an interpretation, not the bridge's actual signal.</p>
         </details>
@@ -137,35 +144,56 @@
 
     <!-- Map -->
     <section class="panel mapbox" aria-labelledby="mapTitle">
-      <div class="panel-head"><h2 id="mapTitle">Harbor map</h2><span class="fine">Live AIS positions</span></div>
+      <div class="panel-head"><h2 id="mapTitle">Ship &amp; camera map</h2>
+        <label class="fine check"><input type="checkbox" id="showCones" checked> Camera views</label></div>
       <div id="map"></div>
+      <div class="map-legend fine">
+        <span><i style="background:#ff8a00"></i>Heading in</span><span><i style="background:#1e88e5"></i>Moving in harbor</span>
+        <span><i style="background:#9c27b0"></i>Heading out</span><span><i style="background:#e0b000"></i>At anchor</span>
+        <span><i style="background:#16a3a3"></i>On the lake</span><span><i style="background:#8a99a8"></i>At dock</span>
+        <span><i class="cone"></i>Camera view (approx.)</span>
+      </div>
     </section>
 
-    <!-- Lake -->
+    <!-- Lake conditions -->
     <section class="panel lake" aria-labelledby="lakeTitle">
-      <div class="panel-head"><h2 id="lakeTitle">Lake Superior</h2></div>
+      <div class="panel-head"><h2 id="lakeTitle">Lake conditions</h2><span class="pill" id="lakeAge"></span></div>
       <div class="stats" id="lakeStats"></div>
-      <p class="fine">NOAA buoys and harbor gauge.</p>
+      <div class="stats sky-stats" id="skyStats"></div>
+      <p class="fine">Water and waves from NOAA buoys (the lake buoys are pulled out for winter, usually from late October to May). Sun and moon times are calculated for Canal Park.</p>
     </section>
 
-    <!-- Sky -->
-    <section class="panel sky" aria-labelledby="skyTitle">
-      <div class="panel-head"><h2 id="skyTitle">Sun &amp; moon</h2></div>
-      <div class="stats" id="skyStats"></div>
+    <!-- Visitor guide -->
+    <section class="panel guide" aria-labelledby="guideTitle">
+      <div class="panel-head"><h2 id="guideTitle">Visitor center guide</h2></div>
+      <div class="tabs" role="tablist" id="guideTabs">
+        <button data-guide="bridge" class="on">The bridge</button>
+        <button data-guide="ships">Ship types</button>
+        <button data-guide="horns">Horn signals</button>
+        <button data-guide="current">The current light</button>
+        <button data-guide="tips">Ship-watching tips</button>
+      </div>
+      <div id="guideBody" class="guide-body"></div>
     </section>
 
-    <!-- Horns -->
+    <!-- Photo of the day -->
+    <section class="panel photo" aria-labelledby="photoTitle">
+      <div class="panel-head"><h2 id="photoTitle">Harbor photo of the day</h2></div>
+      <figure id="photoBox" class="potd"><div class="empty">Loading…</div></figure>
+    </section>
+
+    <!-- Sounds -->
     <section class="panel horns" aria-labelledby="hornTitle">
       <div class="panel-head"><h2 id="hornTitle">Sounds of the canal</h2></div>
       <div class="horn-grid">
         <button class="horn" data-horn="salute"><b>Captain's salute</b><span>long · short · short</span></button>
         <button class="horn" data-horn="bridge"><b>Bridge answers</b><span>long · short · short</span></button>
-        <button class="horn" data-horn="long"><b>Single long blast</b><span>Leaving the dock</span></button>
+        <button class="horn" data-horn="master"><b>Master salute</b><span>long ×3 · short ×2</span></button>
         <button class="horn" data-horn="fog"><b>Foghorn</b><span>The canal on a foggy night</span></button>
         <button class="horn" data-horn="waves" id="wavesBtn"><b>Waves on the pier</b><span>Tap to toggle</span></button>
         <button class="horn" data-horn="gulls"><b>Gulls</b><span>Canal Park regulars</span></button>
       </div>
-      <p class="fine">Recreations made in your browser, not recordings.</p>
+      <p class="fine">Recreations made in your browser, not recordings. More signals are in the guide.</p>
     </section>
 
     <!-- Explore -->
@@ -179,7 +207,8 @@
         <li><a href="https://glaquarium.org/" target="_blank" rel="noopener">Great Lakes Aquarium</a></li>
         <li><a href="https://visitduluth.com/events/" target="_blank" rel="noopener">Events in Duluth</a></li>
         <li><a href="https://www.duluthshippingnews.com/" target="_blank" rel="noopener">Duluth Shipping News</a></li>
-        <li><a href="https://www.boatnerd.com/" target="_blank" rel="noopener">BoatNerd — Great Lakes ship info</a></li>
+        <li><a href="https://www.boatnerd.com/" target="_blank" rel="noopener">BoatNerd: Great Lakes ship info</a></li>
+        <li><a href="https://mndigital.org/projects/primary-source-sets/duluths-aerial-lift-bridge" target="_blank" rel="noopener">Historic bridge photos (Minnesota Digital Library)</a></li>
       </ul>
     </section>
   </main>
@@ -237,6 +266,11 @@
       <ul id="camList" class="cam-list"></ul>
       <button class="btn small" id="camReset">Reset to defaults</button>
     </div>
+  </dialog>
+
+  <dialog id="shipDialog" class="sheet">
+    <form method="dialog" class="sheet-head"><h2 id="shipDlgTitle">Ship</h2><button class="btn icon" aria-label="Close">✕</button></form>
+    <div class="sheet-body" id="shipDlgBody"></div>
   </dialog>
 
   <svg width="0" height="0" style="position:absolute" aria-hidden="true">

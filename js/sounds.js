@@ -39,7 +39,8 @@ function pattern(steps, voice) {
 }
 
 const SHIP = { freqs: [82, 123, 165], cutoff: 700, gain: 0.24 };
-const BRIDGE = { freqs: [147, 220, 294], cutoff: 1400, gain: 0.18 };
+// The bridge's horns are a pair of locomotive air horns: a brighter chord.
+const BRIDGE = { freqs: [277, 330, 415], cutoff: 2200, gain: 0.14 };
 
 function foghorn() {
   // A deep diaphone-style "BEEE-oh" with a drop in pitch at the end.
@@ -110,6 +111,12 @@ export function play(name) {
     case "salute": return pattern(["L", "S", "S"], SHIP);
     case "bridge": return pattern(["L", "S", "S"], BRIDGE);
     case "long": return pattern(["L"], SHIP);
+    case "master": return pattern(["L", "L", "L", "S", "S"], SHIP);
+    case "request": return pattern(["L", "S", "L", "S"], SHIP);
+    case "request-bridge": return pattern(["L", "S", "L", "S"], BRIDGE);
+    case "danger": return pattern(["S", "S", "S", "S", "S"], SHIP);
+    case "one-short": return pattern(["S"], SHIP);
+    case "two-short": return pattern(["S", "S"], SHIP);
     case "fog": return foghorn();
     case "gulls": return gulls();
     case "waves": return toggleWaves();

@@ -1,6 +1,6 @@
 // Service worker: lets the app open offline and show notifications.
-const CACHE = "canal-park-v1";
-const SHELL = ["./", "index.html", "css/style.css", "js/config.js", "js/app.js", "js/sounds.js", "js/sky.js", "scripts/harbor.mjs", "manifest.webmanifest", "icons/icon.svg", "icons/icon-192.png"];
+const CACHE = "canal-park-v2";
+const SHELL = ["./", "index.html", "css/style.css", "js/config.js", "js/app.js", "js/sounds.js", "js/sky.js", "js/guide.js", "js/photos.js", "config/fleet.json", "scripts/harbor.mjs", "manifest.webmanifest", "icons/icon.svg", "icons/icon-192.png"];
 
 self.addEventListener("install", (e) => { e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting())); });
 self.addEventListener("activate", (e) => {

@@ -87,13 +87,21 @@ h3 { font-size: .9rem; margin: 18px 0 6px; }
   grid-template-columns: minmax(0, 1fr); align-items: start;
 }
 @media (min-width: 1000px) {
-  .layout { grid-template-columns: minmax(0, 2fr) minmax(320px, 1fr); }
-  .cams { grid-column: 1; }
-  .side { grid-column: 2; grid-row: 1 / span 2; }
-  .ships { grid-column: 1; }
-  .mapbox { grid-column: 1 / -1; }
-  .lake { grid-column: 1; } .sky { grid-column: 2; }
-  .horns { grid-column: 1; } .explore { grid-column: 2; }
+  .layout {
+    grid-template-columns: minmax(0, 2fr) minmax(320px, 1fr);
+    grid-template-areas:
+      "next  side"
+      "cams  side"
+      "ships side"
+      "map   map"
+      "lake  lake"
+      "guide photo"
+      "guide horns"
+      "guide explore";
+  }
+  .next { grid-area: next; } .cams { grid-area: cams; } .side { grid-area: side; }
+  .ships { grid-area: ships; } .mapbox { grid-area: map; } .lake { grid-area: lake; }
+  .guide { grid-area: guide; } .photo { grid-area: photo; } .horns { grid-area: horns; } .explore { grid-area: explore; }
 }
 .side { display: grid; gap: 14px; align-content: start; min-width: 0; }
 .panel {
@@ -234,8 +242,7 @@ h3 { font-size: .9rem; margin: 18px 0 6px; }
 .stat .s { font-size: .75rem; color: var(--muted); }
 
 /* Horns */
-.horn-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
-@media (max-width: 520px) { .horn-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.horn-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 8px; }
 .horn {
   text-align: left; border: 1px solid var(--line); background: var(--panel-2); color: var(--ink);
   border-radius: 10px; padding: 10px; cursor: pointer; font: inherit;
@@ -281,3 +288,64 @@ input[type="text"], input:not([type]), .sheet input:not([type="checkbox"]) {
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: 0s !important; animation-iteration-count: 1 !important; }
 }
+
+/* Next ship */
+.next-body { display: grid; gap: 12px; }
+.next-card { display: grid; grid-template-columns: minmax(0, 220px) minmax(0, 1fr); gap: 14px; align-items: start; }
+@media (max-width: 620px) { .next-card { grid-template-columns: 1fr; } .next-card .ship-photo { aspect-ratio: 16 / 9; } }
+.ship-photo { position: relative; border-radius: 10px; overflow: hidden; background: var(--panel-2); aspect-ratio: 4 / 3; display: grid; place-items: center; color: var(--muted); font-size: .8rem; }
+.ship-photo img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.ship-photo .credit { position: absolute; left: 0; right: 0; bottom: 0; padding: 3px 6px; font-size: .65rem; background: rgba(0,0,0,.55); color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ship-photo .credit a { color: #fff; }
+.ship-photo svg { width: 70%; opacity: .5; }
+.next-info h3 { font-size: 1.35rem; margin: 0; }
+.next-info h3 button { all: unset; cursor: pointer; }
+.next-info h3 button:hover { text-decoration: underline; }
+.countdown { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; margin: 6px 0 8px; }
+.countdown .big { color: var(--accent); }
+.facts-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 6px 14px; margin: 8px 0 0; }
+.facts-list div { font-size: .85rem; } .facts-list dt { font-size: .7rem; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; } .facts-list dd { margin: 0; font-weight: 600; }
+.note { font-size: .85rem; margin: 8px 0 0; padding: 8px 10px; border-left: 3px solid var(--accent); background: var(--panel-2); border-radius: 0 8px 8px 0; }
+.later { list-style: none; margin: 0; padding: 0; display: flex; gap: 6px; flex-wrap: wrap; }
+.later li button { border: 1px solid var(--line); background: var(--panel-2); color: var(--ink); border-radius: 99px; padding: 4px 10px; font: inherit; font-size: .8rem; cursor: pointer; }
+.row-actions { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 10px; }
+
+/* Ships in camera view */
+.cam .inview {
+  position: absolute; left: 8px; bottom: 8px; right: 8px; z-index: 2; display: flex; gap: 4px; flex-wrap: wrap; pointer-events: none;
+}
+.cam .inview span { background: rgba(255, 138, 0, .92); color: #111; font-size: .72rem; font-weight: 700; padding: 2px 7px; border-radius: 6px; pointer-events: auto; cursor: pointer; }
+.cam.flash-focus { outline: 3px solid var(--accent); outline-offset: 2px; }
+
+/* Map legend */
+.map-legend { display: flex; flex-wrap: wrap; gap: 4px 14px; margin-top: 8px; }
+.map-legend i { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 5px; vertical-align: -1px; }
+.map-legend i.cone { border-radius: 2px; background: rgba(79, 179, 232, .35); border: 1px solid #4fb3e8; }
+.leaflet-popup-content { font-size: 13px; }
+.leaflet-popup-content button { margin-top: 6px; }
+
+/* Lake conditions */
+.sky-stats { margin-top: 8px; }
+
+/* Guide */
+.guide-body { font-size: .93rem; }
+.guide-body h4 { margin: 14px 0 4px; font-size: .95rem; }
+.guide-body p { margin: 6px 0; }
+.guide-body ul { padding-left: 18px; margin: 6px 0; }
+.signal-table { width: 100%; border-collapse: collapse; margin-top: 6px; }
+.signal-table td { padding: 7px 6px; border-top: 1px solid var(--line); vertical-align: top; }
+.signal-table td:first-child { white-space: nowrap; font-family: ui-monospace, Menlo, monospace; font-weight: 700; letter-spacing: .1em; }
+.signal-table button { white-space: nowrap; }
+.types { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 8px; }
+.types div { background: var(--panel-2); border-radius: 10px; padding: 10px; }
+.types b { display: block; }
+
+/* Photo of the day */
+.potd { margin: 0; }
+.potd img { width: 100%; border-radius: 10px; display: block; max-height: 340px; object-fit: cover; background: var(--panel-2); }
+.potd figcaption { font-size: .78rem; color: var(--muted); margin-top: 6px; }
+
+/* Ship dialog */
+.ship-dlg .ship-photo { aspect-ratio: 16 / 9; margin-bottom: 10px; }
+
+.pill:empty { display: none; }

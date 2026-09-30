@@ -24,8 +24,13 @@ export const HARBOR_POLYGON = [
   [46.7880, -92.0950],
 ];
 
-// Area watched for AIS messages: the harbor plus ~25 nautical miles of lake.
-export const WATCH_BOX = [[46.55, -92.30], [47.15, -91.35]];
+// Area watched for AIS messages: the harbor plus the western end of Lake
+// Superior (out past the Apostle Islands and up the North Shore), so ships
+// show up hours before they reach the canal.
+export const WATCH_BOX = [[46.40, -92.35], [47.75, -90.20]];
+
+// Destinations that mean "coming to the Twin Ports".
+const TWIN_PORTS = /DULUTH|SUPERIOR|DLH|USDLH|SUW|USSUW|TWIN ?PORT/i;
 
 export function inHarbor(lat, lon) {
   let inside = false;
@@ -153,24 +158,43 @@ export function describe(v) {
   v.canalDistanceNm = +distanceNm(v.lat, v.lon, ENTRIES.duluth.lat, ENTRIES.duluth.lon).toFixed(2);
   delete v.etaMinutes;
   delete v.approachEntry;
+  delete v.departEntry;
 
   const moving = (v.sog || 0) >= 1.5;
   const anchored = v.navStatus === 1 || (!moving && v.zone === "lake");
   const moored = v.navStatus === 5 || (!moving && v.zone === "harbor");
 
-  if (v.zone === "lake" && moving) {
-    // Heading toward one of the two entries?
+  if (v.zone === "lake" && moving && v.cog != null) {
+    // Heading toward one of the two entries? Close in, the course must point
+    // at the entry. Farther out, accept a looser course if the ship reports
+    // Duluth/Superior as its destination.
+    const bound = TWIN_PORTS.test(v.destination || "");
+    let best = null;
     for (const e of Object.values(ENTRIES)) {
       const d = distanceNm(v.lat, v.lon, e.lat, e.lon);
-      if (d <= 30 && v.cog != null && angleDiff(v.cog, bearing(v.lat, v.lon, e.lat, e.lon)) <= 30) {
-        v.approachEntry = e.key;
-        v.etaMinutes = Math.round((d / Math.max(v.sog, 0.5)) * 60);
+      const off = angleDiff(v.cog, bearing(v.lat, v.lon, e.lat, e.lon));
+      const ok = (d <= 30 && off <= 30) || (bound && d <= 90 && off <= 45);
+      if (ok && (!best || off < best.off)) best = { e, d, off };
+    }
+    if (best) {
+      v.approachEntry = best.e.key;
+      v.etaMinutes = Math.round((best.d / Math.max(v.sog, 0.5)) * 60);
+    }
+  }
+  if (v.zone === "harbor" && (v.sog || 0) >= 2 && v.cog != null) {
+    // Moving in the harbor and pointed at an entry = on the way out.
+    for (const e of Object.values(ENTRIES)) {
+      const d = distanceNm(v.lat, v.lon, e.lat, e.lon);
+      if (d <= 3 && angleDiff(v.cog, bearing(v.lat, v.lon, e.lat, e.lon)) <= 35) {
+        v.departEntry = e.key;
+        v.etaMinutes = Math.round((d / v.sog) * 60);
         break;
       }
     }
   }
 
   if (v.approachEntry) v.status = `Approaching ${ENTRIES[v.approachEntry].name}`;
+  else if (v.departEntry) v.status = `Heading out the ${ENTRIES[v.departEntry].name}`;
   else if (v.zone === "lake" && anchored) v.status = "At anchor off Duluth";
   else if (v.zone === "lake") v.status = "Underway on the lake";
   else if (moored) v.status = "At dock in harbor";
@@ -201,16 +225,9 @@ export function detectEvents(prev, v, nowIso) {
     v.flags.approachAlerted = true;
   }
 
-  // Leaving: underway in the harbor within 2.5 nm of an entry and pointed at it.
-  if (v.zone === "harbor" && (v.sog || 0) >= 2 && v.cog != null && !v.flags.departAlerted) {
-    for (const e of Object.values(ENTRIES)) {
-      const d = distanceNm(v.lat, v.lon, e.lat, e.lon);
-      if (d <= 2.5 && angleDiff(v.cog, bearing(v.lat, v.lon, e.lat, e.lon)) <= 35) {
-        events.push({ ...base, type: "departing", entry: e.key, etaMinutes: Math.round((d / v.sog) * 60) });
-        v.flags.departAlerted = true;
-        break;
-      }
-    }
+  if (v.departEntry && !v.flags.departAlerted) {
+    events.push({ ...base, type: "departing", entry: v.departEntry, etaMinutes: v.etaMinutes });
+    v.flags.departAlerted = true;
   }
   if (v.zone === "lake" && !v.approachEntry && v.distanceNm > 12) v.flags.approachAlerted = false;
   return events;
@@ -258,4 +275,32 @@ export function processUpdate(prevState, messages, nowIso) {
   events.forEach((e) => (e.id = `${e.mmsi}-${e.type}-${e.time}`));
   const allEvents = [...events, ...(prevState?.events || [])].slice(0, 150);
   return { updated: nowIso, vessels, events: allEvents, newEvents: events };
+}
+
+// Is the ship riding deep (loaded) or high (empty)? Based on the draught the
+// crew enters into AIS, so treat it as a hint.
+export function loadState(v) {
+  if (!v.draught || !v.length || v.length < 100) return null;
+  if (v.draught >= 7) return { loaded: true, text: "Loaded, sitting deep in the water" };
+  if (v.draught <= 5.5) return { loaded: false, text: "Riding high, probably empty and coming to load" };
+  return null;
+}
+
+// Flag country from the first three digits of the MMSI (the "MID").
+const MID = {
+  "303": "United States", "338": "United States", "366": "United States", "367": "United States", "368": "United States", "369": "United States",
+  "316": "Canada", "209": "Cyprus", "210": "Cyprus", "212": "Cyprus", "211": "Germany", "218": "Germany", "215": "Malta", "229": "Malta",
+  "248": "Malta", "249": "Malta", "256": "Malta", "219": "Denmark", "220": "Denmark", "232": "United Kingdom", "233": "United Kingdom",
+  "235": "United Kingdom", "237": "Greece", "239": "Greece", "240": "Greece", "241": "Greece", "244": "Netherlands", "245": "Netherlands",
+  "246": "Netherlands", "255": "Portugal (Madeira)", "257": "Norway", "258": "Norway", "259": "Norway", "261": "Poland", "271": "Turkey",
+  "305": "Antigua & Barbuda", "308": "Bahamas", "309": "Bahamas", "311": "Bahamas", "314": "Barbados", "351": "Panama", "352": "Panama",
+  "353": "Panama", "354": "Panama", "355": "Panama", "356": "Panama", "357": "Panama", "370": "Panama", "371": "Panama", "372": "Panama",
+  "373": "Panama", "477": "Hong Kong", "538": "Marshall Islands", "563": "Singapore", "564": "Singapore", "565": "Singapore", "566": "Singapore",
+  "636": "Liberia", "224": "Spain", "225": "Spain", "226": "France", "227": "France", "228": "France", "230": "Finland", "265": "Sweden", "266": "Sweden",
+  "247": "Italy", "236": "Gibraltar", "304": "Antigua & Barbuda", "431": "Japan", "440": "South Korea", "412": "China", "413": "China", "414": "China",
+};
+export function flagOf(mmsi) {
+  const c = MID[String(mmsi).slice(0, 3)];
+  if (!c) return null;
+  return { country: c, lakes: c === "United States" || c === "Canada" };
 }

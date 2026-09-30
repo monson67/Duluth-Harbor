@@ -12,11 +12,25 @@ window.CANAL_CONFIG = {
   // "Manage cameras" button in the app (no file editing needed).
   // "channel" entries always show that channel's current featured live stream.
   cameras: [
-    { title: "Duluth Harbor Cam — featured live", channel: "UCzkaQrI9-nSv373EvK5p0SQ" },
+    { title: "Duluth Harbor Cam — featured live", channel: "UCzkaQrI9-nSv373EvK5p0SQ", spot: "none" },
     { title: "Canal Cam", youtube: "HPS48TMmNag" },
     { title: "Ship Cam at Canal Park", youtube: "f0YRWpQTxNU" },
   ],
   cameraChannelPage: "https://www.youtube.com/@DuluthHarborCam1/streams",
+
+  // Where each camera sits and roughly which way it points, so the map can
+  // show what it sees and label ships "in view". A camera is linked to a
+  // spot when its title contains the spot's "match" word(s).
+  // bearing = compass direction the camera faces (0 = north, 90 = east),
+  // fov = how wide it sees in degrees, range = how far in nautical miles.
+  // These are APPROXIMATE. Adjust them if a camera's view looks off.
+  cameraSpots: [
+    { key: "canal", name: "Canal Cam", match: "canal|ship cam", lat: 46.7794, lon: -92.0912, bearing: 70, fov: 80, range: 4 },
+    { key: "bridge", name: "Bridge Cam", match: "bridge", lat: 46.7794, lon: -92.0912, bearing: 245, fov: 60, range: 1.5 },
+    { key: "southpier", name: "South Pier Lighthouse Cam", match: "south pier|lighthouse", lat: 46.7788, lon: -92.0887, bearing: 65, fov: 110, range: 6 },
+    { key: "harbor", name: "Harbor Cam", match: "harbor cam|hillside|bayfront|pier b|gla", lat: 46.7780, lon: -92.1060, bearing: 100, fov: 90, range: 2.5 },
+    { key: "wipoint", name: "Wisconsin Point Cam", match: "wisconsin point|superior entry", lat: 46.7115, lon: -92.0040, bearing: 300, fov: 120, range: 4 },
+  ],
 
   // Duluth-Superior Harbor Marine Traffic scanner (Broadcastify feed 37404).
   radio: {
@@ -41,6 +55,8 @@ window.CANAL_CONFIG = {
 
   // Where the ship data is published by the background updater. Leave as-is.
   shipsDataUrl: "data/ships.json",
+  // Extra info about well-known ships (usual cargo, photos, notes).
+  fleetUrl: "config/fleet.json",
 
   // Official / community schedule pages (opened in a new tab).
   scheduleLinks: [

@@ -1,0 +1,19 @@
+{
+  "_help": "Extra facts shown on ship cards. Key = ship name exactly as broadcast (capitals). Optional fields: cargo (what it usually carries), note (a fun fact), photo (link to a .jpg you have permission to use), photoCredit. Edit on GitHub and commit.",
+  "ships": {
+    "PAUL R. TREGURTHA": { "cargo": "Usually coal, often from Superior's Midwest Energy terminal", "note": "The longest ship on the Great Lakes at 1,013.5 ft, nicknamed the \"Queen of the Lakes\"." },
+    "EDWIN H. GOTT": { "cargo": "Taconite (iron ore pellets)", "note": "A 1,004-ft laker in the Great Lakes Fleet." },
+    "EDGAR B. SPEER": { "cargo": "Taconite (iron ore pellets)" },
+    "STEWART J. CORT": { "cargo": "Taconite (iron ore pellets)", "note": "The first 1,000-footer on the Great Lakes, launched in 1972." },
+    "ARTHUR M. ANDERSON": { "cargo": "Taconite, sometimes limestone", "note": "The last ship in radio contact with the Edmund Fitzgerald before it sank in November 1975." },
+    "PRESQUE ISLE": { "cargo": "Taconite (iron ore pellets)", "note": "A 1,000-ft tug-barge: a tug locked into a notch at the back of the barge." },
+    "MESABI MINER": { "cargo": "Coal and taconite" },
+    "WALTER J. MCCARTHY JR.": { "cargo": "Usually coal from Superior" },
+    "JOHN G. MUNSON": { "cargo": "Limestone, coal and taconite" },
+    "HON. JAMES L. OBERSTAR": { "cargo": "Taconite (iron ore pellets)", "note": "Named for the Minnesota congressman who championed Great Lakes shipping." },
+    "ALDER": { "cargo": "No cargo: U.S. Coast Guard buoy tender", "note": "USCGC Alder is based in Duluth. It tends navigation buoys and breaks ice in winter." },
+    "USCGC ALDER": { "cargo": "No cargo: U.S. Coast Guard buoy tender", "note": "USCGC Alder is based in Duluth. It tends navigation buoys and breaks ice in winter." },
+    "VIKING OCTANTIS": { "cargo": "Passengers: expedition cruise ship" },
+    "VIKING POLARIS": { "cargo": "Passengers: expedition cruise ship" }
+  }
+}
