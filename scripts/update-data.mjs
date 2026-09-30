@@ -11,7 +11,6 @@
 
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { WATCH_BOX, processUpdate, eventText, matchesFavorites } from "./harbor.mjs";
-import { fetchSchedule } from "./schedule.mjs";
 
 const OUT = process.env.OUT_DIR || "data";
 const LISTEN = Number(process.env.LISTEN_SECONDS || 150);
@@ -165,18 +164,20 @@ async function updateCams() {
   return { updated: now(), cams };
 }
 
-// --- Posted schedule (Canal Park) ---------------------------------------------
-const SCHEDULE_URL = "https://canalpark.com/duluth-ship-schedule/";
-async function updateSchedule() {
-  const sched = await fetchSchedule(SCHEDULE_URL, (u) => getText(u, { headers: { "User-Agent": "Mozilla/5.0 (Canal Park Visitor Center app)", Accept: "text/html" } }));
-  console.log(`Schedule: ${sched.rows.length} rows, columns: ${sched.header.join(" | ")}`);
-  return { updated: now(), source: SCHEDULE_URL, ...sched };
+// --- Posted schedule --------------------------------------------------------------
+// Canal Park's schedule page embeds Harbor Lookout, and so does this app.
+// Log whether Harbor Lookout allows being shown inside other sites.
+async function checkScheduleEmbed() {
+  const res = await fetch("https://harborlookout.com/", { signal: AbortSignal.timeout(15000) });
+  console.log("Harbor Lookout:", res.status, "x-frame-options:", res.headers.get("x-frame-options") || "(none)",
+    "| frame-ancestors:", (res.headers.get("content-security-policy") || "").match(/frame-ancestors[^;]*/)?.[0] || "(none)");
 }
 
 // --- Run everything ------------------------------------------------------------
 async function main() {
   await mkdir(OUT, { recursive: true });
-  const jobs = { "ships.json": updateShips, "current.json": updateCurrent, "lake.json": updateLake, "cams.json": updateCams, "schedule.json": updateSchedule };
+  await checkScheduleEmbed().catch((e) => console.log("Harbor Lookout check failed:", e.message));
+  const jobs = { "ships.json": updateShips, "current.json": updateCurrent, "lake.json": updateLake, "cams.json": updateCams };
   const results = await Promise.allSettled(Object.values(jobs).map((fn) => fn()));
   const names = Object.keys(jobs);
   for (let i = 0; i < names.length; i++) {

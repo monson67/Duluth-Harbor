@@ -545,24 +545,15 @@ function renderShips() {
   $$(".star", body).forEach((b) => (b.onclick = () => toggleFav(shipData.vessels[b.dataset.mmsi])));
   wireShipButtons(body);
 }
-// ---------- posted schedule (copied from Canal Park by the updater) ----------
-let schedule = null;
+// ---------- posted schedule (Harbor Lookout, as on Canal Park's site) ----------
 function renderSchedule(body) {
   const src = CFG.scheduleSource;
-  const links = `<p class="fine">Source: <a href="${src.url}" target="_blank" rel="noopener">${esc(src.name)}</a>. Posted times are estimates and change often.
-    Also see ${CFG.scheduleLinks.filter((l) => l.url !== src.url).map((l) => `<a href="${l.url}" target="_blank" rel="noopener">${esc(l.name)}</a>`).join(" · ")}.</p>`;
-  if (!schedule?.rows?.length) {
-    body.innerHTML = `<div class="empty">The posted schedule hasn't been copied into the app yet.<br><a href="${src.url}" target="_blank" rel="noopener">Open the Canal Park ship schedule</a></div>${links}`;
-    return;
-  }
-  const f = favs().map((x) => String(x).toUpperCase());
-  const fav = (row) => row.some((c) => f.includes(String(c).toUpperCase()));
-  body.innerHTML = `<p class="fine" style="margin-top:0">Copied from Canal Park ${ago(schedule.updated)}.</p>
-    <div class="sched-wrap"><table class="sched"><thead><tr>${schedule.header.map((h) => `<th>${esc(h)}</th>`).join("")}</tr></thead>
-    <tbody>${schedule.rows.map((r) => `<tr class="${fav(r) ? "fav" : ""}">${r.map((c) => `<td>${esc(c)}</td>`).join("")}</tr>`).join("")}</tbody></table></div>${links}`;
-}
-async function updateSchedule() {
-  try { schedule = await getJson("data/schedule.json"); if (shipTab === "schedule") renderShips(); } catch {}
+  body.innerHTML = `<p class="fine" style="margin-top:0">Arrivals and departures from <b>${esc(src.name)}</b>, the same schedule
+      <a href="https://canalpark.com/duluth-ship-schedule/" target="_blank" rel="noopener">Canal Park's ship schedule</a> shows.</p>
+    <div class="sched-frame"><iframe src="${src.url}" title="${esc(src.name)} ship schedule" loading="lazy"></iframe></div>
+    <div class="row-actions"><a class="btn small" href="${src.url}" target="_blank" rel="noopener">Open ${esc(src.name)} full screen ↗</a>
+      ${CFG.scheduleLinks.filter((l) => l.url !== src.url).map((l) => `<a class="btn small" href="${l.url}" target="_blank" rel="noopener">${esc(l.name)} ↗</a>`).join("")}</div>
+    <p class="fine">If the schedule area stays blank, use the full-screen button.</p>`;
 }
 
 async function updateShips() {
@@ -746,7 +737,6 @@ function init() {
   updateLake(); setInterval(updateLake, 15 * 60e3);
   updateSky(); setInterval(updateSky, 30 * 60e3);
   updateShips(); setInterval(updateShips, 2 * 60e3);
-  updateSchedule(); setInterval(updateSchedule, 15 * 60e3);
   $$(".ships .tabs button").forEach((b) => (b.onclick = () => { shipTab = b.dataset.tab; renderShips(); }));
   $("#showSmall").onchange = () => { renderShips(); renderMap(); };
   $$(".horn").forEach((b) => (b.onclick = () => {

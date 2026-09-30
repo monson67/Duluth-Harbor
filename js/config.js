@@ -58,11 +58,11 @@ window.CANAL_CONFIG = {
   // Extra info about well-known ships (usual cargo, photos, notes).
   fleetUrl: "config/fleet.json",
 
-  // Posted ship schedule. The updater copies Canal Park's schedule into the
-  // app; these links open the original pages in a new tab.
-  scheduleSource: { name: "Canal Park ship schedule", url: "https://canalpark.com/duluth-ship-schedule/" },
+  // Posted ship schedule: Harbor Lookout, the same schedule Canal Park's
+  // ship-schedule page shows. It appears inside the app's "Posted schedule" tab.
+  scheduleSource: { name: "Harbor Lookout", url: "https://harborlookout.com/" },
   scheduleLinks: [
-    { name: "Canal Park ship schedule", url: "https://canalpark.com/duluth-ship-schedule/" },
+    { name: "Canal Park ship schedule page", url: "https://canalpark.com/duluth-ship-schedule/" },
     { name: "VesselFinder — Port of Duluth", url: "https://www.vesselfinder.com/ports/USDLH001" },
   ],
 };
