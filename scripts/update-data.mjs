@@ -93,6 +93,11 @@ async function updateShips() {
   console.log(`Received ${messages.length} AIS messages.`);
   const state = processUpdate(prev, messages, now());
   const { newEvents, ...toSave } = state;
+  const heard = new Set(messages.map((m) => String(m.MetaData?.MMSI)));
+  const tracked = Object.values(state.vessels);
+  console.log(`Heard ${heard.size} vessel(s) this run; tracking ${tracked.length} in the last 18 hours.`);
+  for (const v of tracked.filter((v) => heard.has(String(v.mmsi))))
+    console.log(`  ${v.name || v.mmsi} · ${v.typeName || "?"} · ${v.status || "?"}${v.etaMinutes != null ? ` · ~${v.etaMinutes} min to entry` : ""}`);
   for (const e of newEvents) console.log("EVENT", e.type, e.name, e.entry);
   await sendAlerts(newEvents, state.vessels);
   return toSave;
