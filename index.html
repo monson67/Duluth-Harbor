@@ -1,0 +1,254 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Canal Park Visitor Center</title>
+  <meta name="description" content="A virtual visitor center for Canal Park in Duluth, Minnesota: live cams, ship traffic, marine radio, canal current and weather.">
+  <meta name="theme-color" content="#0b1d2e">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Canal Park">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icons/icon-180.png">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <svg class="brand-icon" viewBox="0 0 64 64" aria-hidden="true"><use href="#bridge-glyph"/></svg>
+      <div>
+        <h1>Canal Park Visitor Center</h1>
+        <p class="sub">Duluth, Minnesota · <span id="clock">--:--</span></p>
+      </div>
+    </div>
+    <div class="top-actions">
+      <button class="mini-light" id="miniLight" title="Canal current light" aria-label="Canal current light">
+        <span class="lamp r"></span><span class="lamp a"></span><span class="lamp g"></span>
+      </button>
+      <button class="btn icon" id="openSettings" aria-label="Alerts and settings" title="Alerts &amp; settings">
+        <svg viewBox="0 0 24 24"><path d="M12 22a2.5 2.5 0 0 0 2.45-2h-4.9A2.5 2.5 0 0 0 12 22Zm7-6V11a7 7 0 0 0-5.5-6.84V3a1.5 1.5 0 0 0-3 0v1.16A7 7 0 0 0 5 11v5l-2 2v1h18v-1Z"/></svg>
+      </button>
+    </div>
+  </header>
+
+  <div id="weatherAlert" class="alert-banner" hidden></div>
+
+  <main class="layout">
+    <!-- Cameras -->
+    <section class="panel cams" aria-labelledby="camsTitle">
+      <div class="panel-head">
+        <h2 id="camsTitle">Live cameras</h2>
+        <div class="seg" role="group" aria-label="Camera layout">
+          <button data-layout="1">1</button><button data-layout="2" class="on">2</button><button data-layout="4">4</button>
+        </div>
+      </div>
+      <div id="camGrid" class="cam-grid layout-2"></div>
+      <p class="fine">Streams by <a href="https://www.duluthharborcam.com/" target="_blank" rel="noopener">Duluth Harbor Cam</a>.
+        <button class="linkish" id="manageCams">Manage cameras</button></p>
+    </section>
+
+    <div class="side">
+      <!-- Radio -->
+      <section class="panel radio" aria-labelledby="radioTitle">
+        <div class="panel-head"><h2 id="radioTitle">Marine radio</h2><span class="pill" id="radioState">Off</span></div>
+        <p class="muted" id="radioName"></p>
+        <div class="player">
+          <button class="play" id="radioPlay" aria-label="Play">
+            <svg viewBox="0 0 24 24" class="i-play"><path d="M8 5v14l11-7z"/></svg>
+            <svg viewBox="0 0 24 24" class="i-pause"><path d="M7 5h4v14H7zm6 0h4v14h-4z"/></svg>
+          </button>
+          <div class="eq" id="radioEq" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div>
+          <label class="vol"><span class="sr">Volume</span>
+            <input type="range" id="radioVol" min="0" max="1" step="0.05" value="0.8">
+          </label>
+          <button class="btn icon small" id="radioMute" aria-label="Mute" title="Mute">
+            <svg viewBox="0 0 24 24"><path d="M4 9v6h4l5 5V4L8 9Zm12.5 3A4.5 4.5 0 0 0 14 8v8a4.5 4.5 0 0 0 2.5-4Z"/></svg>
+          </button>
+        </div>
+        <p class="fine">Hear lakers, salties, tugs and the bridge operator on marine VHF. A short ad may play when you start.
+          <a id="radioPage" target="_blank" rel="noopener">Open on Broadcastify</a></p>
+      </section>
+
+      <!-- Canal current -->
+      <section class="panel current" aria-labelledby="currentTitle">
+        <div class="panel-head"><h2 id="currentTitle">Canal current</h2><span class="pill" id="currentAge">…</span></div>
+        <div class="current-body">
+          <svg class="signal" id="signal" viewBox="0 0 80 190" role="img" aria-label="Current light">
+            <rect x="8" y="4" width="64" height="182" rx="12" class="housing"/>
+            <g class="visor"><path d="M14 16h52l-6 -8H20z"/><path d="M14 72h52l-6 -8H20z"/><path d="M14 128h52l-6 -8H20z"/></g>
+            <circle cx="40" cy="42" r="20" class="lamp-red"/>
+            <circle cx="40" cy="98" r="20" class="lamp-amber"/>
+            <circle cx="40" cy="154" r="20" class="lamp-green"/>
+          </svg>
+          <div class="current-read">
+            <div class="big" id="currentSpeed">—</div>
+            <div id="currentDir" class="dir">Loading…</div>
+            <div class="flow-anim" id="flowAnim" aria-hidden="true"><span>LAKE</span><div class="water"><i></i><i></i><i></i><i></i></div><span>HARBOR</span></div>
+            <svg class="spark" id="currentSpark" viewBox="0 0 200 50" preserveAspectRatio="none" aria-hidden="true"></svg>
+            <p class="fine" id="currentNote"></p>
+          </div>
+        </div>
+        <details class="legend"><summary>What do the lights mean?</summary>
+          <ul>
+            <li><b class="t-red">Red</b> — water flowing <b>in</b> from the lake, ¾–1½ knots.</li>
+            <li><b class="t-amber">Amber</b> — neutral or weak current.</li>
+            <li><b class="t-green">Green</b> — water flowing <b>out</b> to the lake, ¾–1½ knots.</li>
+            <li><b>Flashing</b> red or green — faster than 1½ knots. Extra caution!</li>
+          </ul>
+          <p class="fine">Recreated here from the USGS canal sensor. It's an interpretation, not the bridge's actual signal.</p>
+        </details>
+      </section>
+
+      <!-- Weather -->
+      <section class="panel weather" aria-labelledby="wxTitle">
+        <div class="panel-head"><h2 id="wxTitle">Weather</h2><span class="pill" id="wxStation">…</span></div>
+        <div class="wx-now">
+          <div class="big" id="wxTemp">—</div>
+          <div><div id="wxDesc">Loading…</div><div class="muted" id="wxWind"></div></div>
+        </div>
+        <div class="wx-hours" id="wxHours"></div>
+        <figure class="radar">
+          <img id="radarImg" alt="Duluth weather radar loop" loading="lazy">
+          <figcaption class="fine">NWS Duluth radar ·
+            <a href="https://radar.weather.gov/station/KDLH/standard" target="_blank" rel="noopener">full radar</a> ·
+            <a href="https://forecast.weather.gov/MapClick.php?lat=46.779&lon=-92.0926" target="_blank" rel="noopener">full forecast</a></figcaption>
+        </figure>
+      </section>
+    </div>
+
+    <!-- Ships -->
+    <section class="panel ships" aria-labelledby="shipsTitle">
+      <div class="panel-head">
+        <h2 id="shipsTitle">Ship traffic</h2>
+        <span class="pill" id="shipsAge">…</span>
+      </div>
+      <div class="tabs" role="tablist">
+        <button role="tab" data-tab="coming" class="on">Coming &amp; going</button>
+        <button role="tab" data-tab="all">All nearby</button>
+        <button role="tab" data-tab="log">Bridge log</button>
+        <button role="tab" data-tab="schedule">Official schedules</button>
+      </div>
+      <div id="shipsBody" class="ships-body"></div>
+      <label class="fine check"><input type="checkbox" id="showSmall"> Show small boats too</label>
+    </section>
+
+    <!-- Map -->
+    <section class="panel mapbox" aria-labelledby="mapTitle">
+      <div class="panel-head"><h2 id="mapTitle">Harbor map</h2><span class="fine">Live AIS positions</span></div>
+      <div id="map"></div>
+    </section>
+
+    <!-- Lake -->
+    <section class="panel lake" aria-labelledby="lakeTitle">
+      <div class="panel-head"><h2 id="lakeTitle">Lake Superior</h2></div>
+      <div class="stats" id="lakeStats"></div>
+      <p class="fine">NOAA buoys and harbor gauge.</p>
+    </section>
+
+    <!-- Sky -->
+    <section class="panel sky" aria-labelledby="skyTitle">
+      <div class="panel-head"><h2 id="skyTitle">Sun &amp; moon</h2></div>
+      <div class="stats" id="skyStats"></div>
+    </section>
+
+    <!-- Horns -->
+    <section class="panel horns" aria-labelledby="hornTitle">
+      <div class="panel-head"><h2 id="hornTitle">Sounds of the canal</h2></div>
+      <div class="horn-grid">
+        <button class="horn" data-horn="salute"><b>Captain's salute</b><span>long · short · short</span></button>
+        <button class="horn" data-horn="bridge"><b>Bridge answers</b><span>long · short · short</span></button>
+        <button class="horn" data-horn="long"><b>Single long blast</b><span>Leaving the dock</span></button>
+        <button class="horn" data-horn="fog"><b>Foghorn</b><span>The canal on a foggy night</span></button>
+        <button class="horn" data-horn="waves" id="wavesBtn"><b>Waves on the pier</b><span>Tap to toggle</span></button>
+        <button class="horn" data-horn="gulls"><b>Gulls</b><span>Canal Park regulars</span></button>
+      </div>
+      <p class="fine">Recreations made in your browser, not recordings.</p>
+    </section>
+
+    <!-- Explore -->
+    <section class="panel explore" aria-labelledby="exploreTitle">
+      <div class="panel-head"><h2 id="exploreTitle">Did you know?</h2><button class="btn small" id="nextFact">Next</button></div>
+      <p class="fact" id="fact"></p>
+      <h3>Explore Canal Park</h3>
+      <ul class="links">
+        <li><a href="https://www.lre.usace.army.mil/Missions/Recreation/Lake-Superior-Maritime-Visitor-Center/" target="_blank" rel="noopener">Lake Superior Maritime Visitor Center</a></li>
+        <li><a href="https://www.decc.org/william-a-irvin/" target="_blank" rel="noopener">William A. Irvin museum ship</a></li>
+        <li><a href="https://glaquarium.org/" target="_blank" rel="noopener">Great Lakes Aquarium</a></li>
+        <li><a href="https://visitduluth.com/events/" target="_blank" rel="noopener">Events in Duluth</a></li>
+        <li><a href="https://www.duluthshippingnews.com/" target="_blank" rel="noopener">Duluth Shipping News</a></li>
+        <li><a href="https://www.boatnerd.com/" target="_blank" rel="noopener">BoatNerd — Great Lakes ship info</a></li>
+      </ul>
+    </section>
+  </main>
+
+  <footer class="foot">
+    <p>Built for ship watchers. Data from Duluth Harbor Cam, Broadcastify, USGS, NOAA, National Weather Service and AIS via aisstream.io.
+      Times and positions are approximate. Don't use this for navigation.</p>
+  </footer>
+
+  <div id="toasts" class="toasts" aria-live="polite"></div>
+
+  <!-- Settings / alerts -->
+  <dialog id="settings" class="sheet">
+    <form method="dialog" class="sheet-head"><h2>Alerts &amp; favorites</h2><button class="btn icon" aria-label="Close">✕</button></form>
+    <div class="sheet-body">
+      <h3>In-app alerts</h3>
+      <p class="fine">Shown while this page or the installed app is open.</p>
+      <button class="btn primary" id="enableNotify">Turn on notifications</button>
+      <div class="checks">
+        <label><input type="checkbox" data-pref="approaching" checked> Ship approaching the canal</label>
+        <label><input type="checkbox" data-pref="arrived" checked> Ship arrived</label>
+        <label><input type="checkbox" data-pref="departing" checked> Ship heading out</label>
+        <label><input type="checkbox" data-pref="departed"> Ship departed</label>
+        <label><input type="checkbox" data-pref="duluthOnly"> Only ships using the Duluth canal (under the bridge)</label>
+        <label><input type="checkbox" data-pref="favoritesOnly"> Only my favorite ships</label>
+        <label><input type="checkbox" data-pref="sound" checked> Play a horn with each alert</label>
+      </div>
+
+      <h3>Favorite ships</h3>
+      <p class="fine">Tap ☆ next to a ship, or add one by name, MMSI (AIS number) or IMO number.</p>
+      <form id="favForm" class="row"><input id="favInput" placeholder="e.g. PAUL R. TREGURTHA or 366904910" aria-label="Ship name or number"><button class="btn">Add</button></form>
+      <ul id="favList" class="chips"></ul>
+
+      <h3>Alerts when the app is closed</h3>
+      <p class="fine">Install the free <b>ntfy</b> app (<a href="https://apps.apple.com/app/ntfy/id1625396347" target="_blank" rel="noopener">iPhone</a> ·
+        <a href="https://play.google.com/store/apps/details?id=io.heckel.ntfy" target="_blank" rel="noopener">Android</a>) and subscribe to your topic.
+        Enter the topic name you chose during setup to see the exact names to subscribe to:</p>
+      <input id="ntfyTopic" placeholder="your-secret-topic" aria-label="ntfy topic">
+      <ul id="ntfyList" class="fine mono"></ul>
+
+      <h3>Install on iPhone</h3>
+      <p class="fine">In Safari, tap <b>Share</b> → <b>Add to Home Screen</b>. Open it from the home screen, then turn on notifications above.</p>
+    </div>
+  </dialog>
+
+  <dialog id="camDialog" class="sheet">
+    <form method="dialog" class="sheet-head"><h2>Manage cameras</h2><button class="btn icon" aria-label="Close">✕</button></form>
+    <div class="sheet-body">
+      <p class="fine">Find a stream on <a id="camChannelLink" target="_blank" rel="noopener">Duluth Harbor Cam's YouTube page</a>, copy its link, and paste it here.</p>
+      <form id="camForm" class="row">
+        <input id="camUrl" placeholder="https://www.youtube.com/watch?v=…" aria-label="YouTube link">
+        <input id="camName" placeholder="Name (optional)" aria-label="Camera name">
+        <button class="btn">Add</button>
+      </form>
+      <ul id="camList" class="cam-list"></ul>
+      <button class="btn small" id="camReset">Reset to defaults</button>
+    </div>
+  </dialog>
+
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+    <symbol id="bridge-glyph" viewBox="0 0 64 64">
+      <path fill="currentColor" d="M8 10h8v44H8zM48 10h8v44h-8zM8 10h48v6H8zM16 20l16 -8 16 8v2H16z" opacity=".9"/>
+      <path fill="currentColor" d="M16 36h32v5H16z"/>
+      <path fill="none" stroke="currentColor" stroke-width="2" d="M4 58c6-3 10 3 16 0s10 3 16 0 10 3 16 0 6 2 8 1"/>
+    </symbol>
+  </svg>
+
+  <script src="js/config.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js" defer></script>
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,55 @@
+# Every ~10 minutes: collect ship positions, canal current, lake and camera
+# data, send ship alerts, and publish the website to GitHub Pages.
+name: Update data and publish site
+
+on:
+  schedule:
+    - cron: "*/10 * * * *"
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Run tests
+        run: node --test tests/*.test.mjs
+
+      - id: pages
+        uses: actions/configure-pages@v5
+
+      - name: Collect data and send alerts
+        env:
+          AISSTREAM_API_KEY: ${{ secrets.AISSTREAM_API_KEY }}
+          NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
+          PREV_DATA_URL: ${{ steps.pages.outputs.base_url }}/data
+          SITE_URL: ${{ steps.pages.outputs.base_url }}
+          LISTEN_SECONDS: "150"
+        run: node scripts/update-data.mjs
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: .
+
+      - id: deploy
+        uses: actions/deploy-pages@v4

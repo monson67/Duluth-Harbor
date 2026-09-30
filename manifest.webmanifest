@@ -1,0 +1,15 @@
+{
+  "name": "Canal Park Visitor Center",
+  "short_name": "Canal Park",
+  "description": "Live cams, ships, marine radio, canal current and weather from Canal Park in Duluth, MN.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#0b1d2e",
+  "theme_color": "#0b1d2e",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "icons/icon.svg", "sizes": "any", "type": "image/svg+xml" }
+  ]
+}

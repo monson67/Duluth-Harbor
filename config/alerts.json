@@ -1,0 +1,8 @@
+{
+  "_help": "Ships listed here trigger the '-favorites' phone alerts. Use the exact ship name (any capitalization) or its MMSI/IMO number. Edit this file right on GitHub and click 'Commit changes'.",
+  "favorites": [
+    "EDWIN H. GOTT",
+    "PAUL R. TREGURTHA",
+    "ARTHUR M. ANDERSON"
+  ]
+}
