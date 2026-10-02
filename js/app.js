@@ -796,7 +796,7 @@ function init() {
   updateSky(); setInterval(updateSky, 30 * 60e3);
   updateShips(); setInterval(updateShips, 2 * 60e3);
   $$(".ships .tabs button").forEach((b) => (b.onclick = () => { shipTab = b.dataset.tab; renderShips(); }));
-  $("#showSmall").checked = store.get("showSmall", true);
+  $("#showSmall").checked = store.get("showSmall", false);
   $("#showSmall").onchange = () => { store.set("showSmall", $("#showSmall").checked); renderMap(); };
   $$(".horn").forEach((b) => (b.onclick = () => {
     const r = play(b.dataset.horn);
