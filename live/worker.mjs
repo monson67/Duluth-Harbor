@@ -11,7 +11,7 @@
 import { WATCH_BOX, applyMessage } from "../scripts/harbor.mjs";
 
 const IDLE_MS = 10 * 60e3;   // hang up after this long with no visitors
-const STALE_MS = 2 * 60e3;   // reconnect if aisstream goes quiet this long
+const STALE_MS = 5 * 60e3;   // reconnect if aisstream goes quiet this long
 const KEEP_MS = 30 * 60e3;   // drop ships not heard from in this long
 const TICK_MS = 30e3;        // how often the helper checks on itself
 const FIELDS = ["mmsi", "name", "lat", "lon", "sog", "cog", "heading", "navStatus", "lastSeen",
@@ -26,6 +26,7 @@ export class Feed {
     this.lastMessage = 0;
     this.lastVisitor = 0;
     this.connecting = null;
+    this.stats = { since: new Date().toISOString(), connects: 0, messages: 0, lastError: null };
   }
 
   async fetch() {
@@ -35,7 +36,7 @@ export class Feed {
     const vessels = Object.values(this.vessels)
       .filter((v) => v.lat != null && Date.parse(v.lastSeen) > cutoff)
       .map((v) => Object.fromEntries(FIELDS.filter((k) => v[k] != null).map((k) => [k, v[k]])));
-    return Response.json({ updated: new Date().toISOString(), connected: !!this.ws, vessels });
+    return Response.json({ updated: new Date().toISOString(), connected: !!this.ws, stats: this.stats, vessels });
   }
 
   async alarm() {
@@ -62,22 +63,26 @@ export class Feed {
           BoundingBoxes: [WATCH_BOX],
           FilterMessageTypes: ["PositionReport", "ShipStaticData", "StandardClassBPositionReport", "ExtendedClassBPositionReport", "StaticDataReport"],
         }));
-        ws.addEventListener("message", (ev) => {
+        ws.addEventListener("message", async (ev) => {
           try {
-            const text = typeof ev.data === "string" ? ev.data : new TextDecoder().decode(ev.data);
+            const d = ev.data;
+            const text = typeof d === "string" ? d : typeof d?.text === "function" ? await d.text() : new TextDecoder().decode(d);
             const m = JSON.parse(text);
-            if (m.error) { console.log("aisstream error:", m.error); this.hangUp(); return; }
+            if (m.error) { console.log("aisstream error:", m.error); this.stats.lastError = String(m.error); this.hangUp(); return; }
             applyMessage(this.vessels, m, new Date().toISOString());
             this.lastMessage = Date.now();
-          } catch {}
+            this.stats.messages++;
+          } catch (err) { this.stats.lastError = err.message; }
         });
-        const gone = () => { if (this.ws === ws) this.ws = null; };
+        const gone = (ev) => { if (ev?.code) this.stats.lastError = `closed ${ev.code} ${ev.reason || ""}`.trim(); if (this.ws === ws) this.ws = null; };
         ws.addEventListener("close", gone);
         ws.addEventListener("error", gone);
         this.ws = ws;
+        this.stats.connects++;
         this.lastMessage = Date.now(); // give it a grace period before calling it stale
       } catch (err) {
         console.log("connect failed:", err.message);
+        this.stats.lastError = err.message;
       } finally {
         this.connecting = null;
       }

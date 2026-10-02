@@ -57,7 +57,7 @@ window.CANAL_CONFIG = {
   // Live ship positions from the Cloudflare helper (see live/worker.mjs).
   // To turn live positions off, change this to "" and the site goes back to
   // the 10-minute updates.
-  liveUrl: "",
+  liveUrl: "https://canal-park-live.canal-park-live.workers.dev/live",
   // Extra info about well-known ships (usual cargo, photos, notes).
   fleetUrl: "config/fleet.json",
 
