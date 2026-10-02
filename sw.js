@@ -1,5 +1,5 @@
 // Service worker: lets the app open offline and show notifications.
-const CACHE = "canal-park-v10";
+const CACHE = "canal-park-v11";
 const SHELL = ["./", "index.html", "css/style.css", "js/config.js", "js/app.js", "js/sounds.js", "js/sky.js", "js/guide.js", "js/photos.js", "config/fleet.json", "scripts/harbor.mjs", "manifest.webmanifest", "icons/icon.svg", "icons/icon-192.png"];
 
 self.addEventListener("install", (e) => { e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting())); });
@@ -11,7 +11,7 @@ self.addEventListener("fetch", (e) => {
   const url = new URL(e.request.url);
   if (e.request.method !== "GET" || url.origin !== location.origin) return;
   e.respondWith(
-    fetch(e.request).then((res) => {
+    fetch(e.request, { cache: "no-cache" }).then((res) => {
       if (res.ok && !url.pathname.includes("/data/")) { const copy = res.clone(); caches.open(CACHE).then((c) => c.put(e.request, copy)); }
       return res;
     }).catch(() => caches.match(e.request))

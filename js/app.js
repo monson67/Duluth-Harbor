@@ -415,7 +415,7 @@ function renderNext() {
     body.innerHTML = `<div class="empty">Live ship tracking isn't turned on yet (see the README, step 3). Meanwhile, check the <a href="${CFG.scheduleSource.url}" target="_blank" rel="noopener">posted schedule</a>.</div>`;
     return;
   }
-  $("#nextAge").textContent = `updated ${ago(shipData.updated)}`;
+  showShipAge();
   const all = nextCandidates();
   const duluth = all.filter((v) => (v.approachEntry || v.departEntry) === "duluth");
   const v = duluth[0] || all[0];
@@ -575,11 +575,14 @@ function applyLive() {
     describe(v);
   }
 }
+// Both ship badges (Next ship and Ship traffic) say "● Live" while live
+// positions are flowing, otherwise how old the 10-minute data is.
 function showShipAge() {
-  const pill = $("#shipsAge");
-  pill.classList.toggle("ships-live", !!liveOn());
-  pill.textContent = liveOn() ? "● Live" : !shipData ? "offline" : shipData.updated ? `updated ${ago(shipData.updated)}` : "not set up";
-  pill.title = liveOn() ? "Ship positions update every 20 seconds" : "Ship positions update about every 10 minutes";
+  for (const pill of [$("#shipsAge"), $("#nextAge")]) {
+    pill.classList.toggle("ships-live", !!liveOn());
+    pill.textContent = liveOn() ? "● Live" : !shipData ? "offline" : shipData.updated ? `updated ${ago(shipData.updated)}` : "not set up";
+    pill.title = liveOn() ? "Ship positions update every 20 seconds" : "Ship positions update about every 10 minutes";
+  }
 }
 function renderAllShips() {
   showShipAge();
