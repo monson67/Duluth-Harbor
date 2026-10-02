@@ -173,18 +173,28 @@ async function followCamStreamer(id) {
 // whether YouTube will play it on other sites.
 async function updateCams() {
   const config = await readFile("js/config.js", "utf8");
-  const cams = [...config.matchAll(/\{ key: "(\w+)", title: "([^"]+)"(?:, camstreamer: "([^"]*)")?, youtube: "([^"]*)"/g)]
-    .map(([, key, title, camstreamer, youtube]) => ({ key, title, camstreamer, youtube }));
+  // Each camera entry starts with { key: "…", title: "…" and runs to its closing }.
+  const field = (text, name) => text.match(new RegExp(`\\b${name}: "([^"]*)"`))?.[1] || null;
+  const cams = [...config.matchAll(/\{ key: "\w+", title: "[^"]+"[^}]*\}/g)].map(([text]) => ({
+    key: field(text, "key"), title: field(text, "title"), youtube: field(text, "youtube"),
+    camstreamer: field(text, "camstreamer"), backup: field(text, "backupCamstreamer"),
+  }));
+  // Try one stream: follow its CamStreamer link (if any), then ask YouTube.
+  const tryStream = async (camstreamer, fallbackId) => {
+    let id = fallbackId || null;
+    if (camstreamer) { try { id = await followCamStreamer(camstreamer); } catch (e) { return { id: null, ok: false, status: `CamStreamer: ${e.message}` }; } }
+    if (!id) return { id, ok: false, status: "not live" };
+    try { const r = await checkVideo(id); return { id, ok: r.ok, status: r.status }; } catch (e) { return { id, ok: false, status: e.message }; }
+  };
   const out = {};
   for (const c of cams) {
-    let id = c.youtube || null;
-    if (c.camstreamer) {
-      try { id = await followCamStreamer(c.camstreamer); } catch (e) { console.log(`Camera ${c.title}: CamStreamer lookup failed (${e.message})`); }
+    let r = await tryStream(c.camstreamer, c.camstreamer ? null : c.youtube), via = "";
+    if (!r.ok && c.backup) {
+      const b = await tryStream(c.backup, null);
+      if (b.ok) { r = b; via = " (backup stream)"; }
     }
-    let r = { ok: false, status: "not live" };
-    if (id) { try { r = await checkVideo(id); } catch (e) { r = { ok: false, status: e.message }; } }
-    out[c.key] = r.ok ? { youtube: id, ok: true } : { youtube: id, ok: false, status: String(r.status) };
-    console.log(`Camera ${c.title}: ${r.ok ? `OK · ${id}` : `NOT PLAYABLE (${r.status})`}`);
+    out[c.key] = r.ok ? { youtube: r.id, ok: true, ...(via && { backup: true }) } : { youtube: r.id, ok: false, status: String(r.status) };
+    console.log(`Camera ${c.title}: ${r.ok ? `OK · ${r.id}${via}` : `NOT PLAYABLE (${r.status})`}`);
   }
   if (!cams.length) throw new Error("no cameras found in js/config.js");
   return { updated: now(), cams: out };

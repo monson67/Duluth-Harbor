@@ -257,30 +257,13 @@ function drawSpark(vals) {
   svg.setAttribute("aria-label", "Current over the last several hours: above the line is outbound, below is inbound");
 }
 
-// ---------- weather ----------
-async function updateWeather() {
+// ---------- weather warnings ----------
+// The Weather section was removed (Oct 2026); only the National Weather
+// Service warning banner remains, shown at the top during active alerts.
+async function updateWeatherAlerts() {
   const { lat, lon } = CFG.location;
-  const nws = (p) => getJson(`https://api.weather.gov${p}`);
   try {
-    let obs, station = CFG.weather.station;
-    try { obs = (await nws(`/stations/${station}/observations/latest`)).properties; if (obs.temperature.value == null) throw 0; }
-    catch { station = CFG.weather.fallbackStation; obs = (await nws(`/stations/${station}/observations/latest`)).properties; }
-    const t = cToF(obs.temperature.value);
-    $("#wxTemp").textContent = t == null ? "—" : `${Math.round(t)}°F`;
-    $("#wxDesc").textContent = obs.textDescription || "";
-    const mph = obs.windSpeed.value == null ? null : obs.windSpeed.value * 0.621371;
-    const gust = obs.windGust?.value ? ` gusting ${Math.round(obs.windGust.value * 0.621371)}` : "";
-    $("#wxWind").textContent = mph == null ? "" : mph < 1 ? "Calm" : `Wind ${compass(obs.windDirection.value)} ${Math.round(mph)} mph${gust}`;
-    $("#wxStation").textContent = `${station} · ${fmtTime(obs.timestamp)}`;
-  } catch { $("#wxDesc").textContent = "Weather unavailable right now."; }
-  try {
-    const pt = (await nws(`/points/${lat.toFixed(4)},${lon.toFixed(4)}`)).properties;
-    const hourly = (await getJson(pt.forecastHourly)).properties.periods;
-    const pick = hourly.filter((_, i) => i % 3 === 0).slice(0, 6);
-    $("#wxHours").innerHTML = pick.map((p) => `<div title="${esc(p.shortForecast)}">${esc(new Date(p.startTime).toLocaleTimeString("en-US", { timeZone: TZ, hour: "numeric" }))}<b>${p.temperature}°</b>${esc(p.shortForecast.split(" ").slice(0, 2).join(" "))}</div>`).join("");
-  } catch {}
-  try {
-    const al = (await nws(`/alerts/active?point=${lat},${lon}`)).features;
+    const al = (await getJson(`https://api.weather.gov/alerts/active?point=${lat},${lon}`)).features;
     const banner = $("#weatherAlert");
     if (al.length) {
       banner.hidden = false;
@@ -288,7 +271,6 @@ async function updateWeather() {
         ` · <a href="https://forecast.weather.gov/MapClick.php?lat=${lat}&lon=${lon}" target="_blank" rel="noopener">details</a>`;
     } else banner.hidden = true;
   } catch {}
-  $("#radarImg").src = `${CFG.weather.radarLoop}?t=${Math.floor(Date.now() / 300000)}`;
 }
 
 // ---------- lake conditions ----------
@@ -923,7 +905,7 @@ function init() {
   getJson(CFG.fleetUrl).then((d) => { fleet = d.ships || {}; renderNext(); }).catch(() => {});
   setInterval(tickNext, 30e3);
   updateCurrent(); setInterval(updateCurrent, 5 * 60e3);
-  updateWeather(); setInterval(updateWeather, 10 * 60e3);
+  updateWeatherAlerts(); setInterval(updateWeatherAlerts, 10 * 60e3);
   updateLake(); setInterval(updateLake, 15 * 60e3);
   updateSky(); setInterval(updateSky, 30 * 60e3);
   updateShips(); setInterval(updateShips, 2 * 60e3);

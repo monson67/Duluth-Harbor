@@ -94,14 +94,13 @@ h3 { font-size: .9rem; margin: 18px 0 6px; }
       "cams  side"
       "ships side"
       "map   map"
-      "lake  weather"
-      "guide weather"
+      "lake  lake"
       "guide photo"
       "guide horns"
       "guide explore";
   }
   .next { grid-area: next; } .cams { grid-area: cams; } .side { grid-area: side; }
-  .ships { grid-area: ships; } .mapbox { grid-area: map; } .lake { grid-area: lake; } .weather { grid-area: weather; }
+  .ships { grid-area: ships; } .mapbox { grid-area: map; } .lake { grid-area: lake; }
   .guide { grid-area: guide; } .photo { grid-area: photo; } .horns { grid-area: horns; } .explore { grid-area: explore; }
 }
 .side { display: grid; gap: 14px; align-content: start; min-width: 0; }
@@ -197,12 +196,6 @@ h3 { font-size: .9rem; margin: 18px 0 6px; }
 .t-red { color: var(--red); } .t-amber { color: #d98f00; } .t-green { color: #13a852; }
 
 /* Weather */
-.wx-now { display: flex; align-items: center; gap: 14px; }
-.wx-hours { display: grid; grid-template-columns: repeat(auto-fit, minmax(64px, 1fr)); gap: 6px; margin-top: 12px; }
-.wx-hours div { background: var(--panel-2); border-radius: 8px; padding: 6px; text-align: center; font-size: .78rem; }
-.wx-hours b { display: block; font-size: 1rem; }
-.radar { margin: 12px 0 0; }
-.radar img { width: 100%; border-radius: 10px; display: block; background: var(--panel-2); aspect-ratio: 600 / 550; object-fit: cover; }
 .alert-banner { background: #b3261e; color: #fff; padding: 8px 16px; font-size: .88rem; }
 .alert-banner a { color: #fff; }
 

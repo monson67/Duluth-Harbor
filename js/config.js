@@ -15,6 +15,7 @@ window.CANAL_CONFIG = {
   //   camstreamer = the museum's stream link; the updater follows it to the
   //                 current YouTube stream each run, so restarted streams keep working
   //   youtube     = last known YouTube stream (used until the updater checks)
+  //   backupCamstreamer = another stream of the same view, used when the main one is down
   //   spot        = where the camera sits on the map (see cameraSpots below), for
   //                 the "ships in view" labels; leave it out if unknown
   cameraLocations: [
@@ -24,7 +25,10 @@ window.CANAL_CONFIG = {
       { key: "bayfront", title: "Bayfront Cam", camstreamer: "u3a9TNe05qcM4qK6Yza0Om5JczJmeBqEiHhyY8OS", youtube: "EbVlhVeD3jA", spot: "harbor" },
       { key: "lighthouse", title: "Lighthouse Cam", camstreamer: "lDZY136tEMlHXuVDNpBjt5klRIZfjIXE9I7e7tXX", youtube: "nCf7X2cPDAY", spot: "lighthouse" },
       { key: "hillside", title: "Hillside Cam", camstreamer: "iJ04DdtUqAILdENBaiQbAng9zac4j1igTvhHwJQQ", youtube: "DzJb26edNjs", spot: "harbor" },
-      { key: "southpier", title: "South Pier Lighthouse Cam", camstreamer: "GVCSDDlxgIH6zkiNVlvQ4acQY080qKDKW3HR0uJb", youtube: "Pij4VMrNMFY", spot: "southpier" },
+      { key: "southpier", title: "South Pier Lighthouse Cam", camstreamer: "GVCSDDlxgIH6zkiNVlvQ4acQY080qKDKW3HR0uJb", youtube: "a-ADUhRp0yk", spot: "southpier",
+        // If the museum's stream is down, use Duluth Harbor Cam's South Pier
+        // Lighthouse page (duluthharborcam.com/p/south-pier-lighthouse-cam.html).
+        backupCamstreamer: "KW6M74xHL0yw1bxWTiKLVyXAWVnG8wyLEMDgkNMQ" },
       { key: "gla", title: "GLA Cam", camstreamer: "vnpbuwO8ijoqqGF7cQpP3YLiwihrwlgbbK17GHlN", youtube: "bBubIPZYVt0", spot: "harbor" },
       { key: "pierb", title: "Pier B Cam", camstreamer: "omtBz7h244PIqjMrwI8xDV6DynIb4G4jwNTdZaEE", youtube: "c1kfkIoF0k0", spot: "harbor" },
       { key: "harborcam", title: "Harborcam", camstreamer: "i2mkqi3dioZzrrKwRBE62MsKV6R924qftGGZydZT", youtube: "05WivhRmKq4", spot: "harbor" },
@@ -78,14 +82,6 @@ window.CANAL_CONFIG = {
 
   // U.S. Geological Survey water-speed sensor in the ship canal.
   usgsSite: "464646092052900",
-
-  // National Weather Service: weather station on Park Point (Sky Harbor
-  // airport, closest to the canal) and the Duluth radar.
-  weather: {
-    station: "KDYT",
-    fallbackStation: "KDLH",
-    radarLoop: "https://radar.weather.gov/ridge/standard/KDLH_loop.gif",
-  },
 
   // NOAA water-level gauge in the Duluth harbor.
   noaaWaterStation: "9099064",
