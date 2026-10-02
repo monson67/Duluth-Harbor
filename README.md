@@ -82,6 +82,14 @@ tap the bell 🔔, and choose **Turn on notifications** for alerts while the app
 - **Ship facts (usual cargo, fun notes, your own photos):** edit `config/fleet.json`. Ship broadcasts (AIS) don't include cargo, so this list fills the gap.
 - **Camera view areas on the map:** in `js/config.js` under `cameraSpots`. Each camera's position, direction (`bearing`), width (`fov`) and distance (`range`) are approximate. Nudge them if the "in view" labels don't match what you see.
 
+## Live ship positions (optional)
+
+`live/` is a small Cloudflare Worker that holds the aisstream.io connection while someone has the site open and serves positions every few seconds; the site checks it every 20 seconds and shows a green **● Live** badge. It runs on Cloudflare's free plan and hangs up about 10 minutes after the last visitor leaves.
+
+- **Turn it off:** in `js/config.js`, set `liveUrl: ""`. The site goes back to the 10-minute updates.
+- **If it stops** (for example the free daily allowance runs out), the site falls back to the 10-minute updates on its own.
+- **Update it:** from the `live` folder, `npx wrangler deploy`. Its aisstream key is a Cloudflare secret (`npx wrangler secret put AISSTREAM_API_KEY`).
+
 ## Good to know
 
 - **Ship alerts are approximate.** The updater checks about every 10 minutes (each run starts the next, since GitHub runs scheduled jobs late),
