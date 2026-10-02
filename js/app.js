@@ -3,7 +3,7 @@ import { play } from "./sounds.js";
 import { sunTimes, moonPhase, moonTimes } from "./sky.js";
 import { GUIDE, FACTS } from "./guide.js";
 import { shipPhoto, photoOfTheDay } from "./photos.js";
-import { ENTRIES, eventText, matchesFavorites, isCommercial, isFreighter, loadState, flagOf, bearing, distanceNm } from "../scripts/harbor.mjs";
+import { ENTRIES, eventText, matchesFavorites, isFreighter, loadState, flagOf, bearing, distanceNm } from "../scripts/harbor.mjs";
 
 const CFG = window.CANAL_CONFIG;
 const TZ = "America/Chicago";
@@ -406,7 +406,7 @@ function factsList(v) {
 function nextCandidates() {
   if (!shipData?.vessels) return [];
   return Object.values(shipData.vessels)
-    .filter((v) => isCommercial(v) && (v.approachEntry || v.departEntry) && v.etaMinutes != null)
+    .filter((v) => isFreighter(v) && (v.approachEntry || v.departEntry) && v.etaMinutes != null)
     .sort((a, b) => PASSAGE_MS(a) - PASSAGE_MS(b));
 }
 function renderNext() {
@@ -524,24 +524,25 @@ function renderShips() {
     $("[data-goto]", body)?.addEventListener("click", () => { shipTab = "schedule"; renderShips(); });
     return;
   }
-  const showSmall = $("#showSmall").checked;
-  const vessels = Object.values(shipData.vessels || {}).filter((v) => v.lat != null && (showSmall || isCommercial(v) || isFav(v)));
+  // Lists, the bridge log and alerts are for freighters only; other boats appear only on the map.
+  const vessels = Object.values(shipData.vessels || {}).filter((v) => v.lat != null && isFreighter(v));
+  const events = (shipData.events || []).filter((e) => isFreighter(shipData.vessels?.[e.mmsi] || e));
   let html = "";
   if (shipTab === "coming") {
     const coming = vessels.filter((v) => v.approachEntry).sort((a, b) => a.etaMinutes - b.etaMinutes);
     const leaving = vessels.filter((v) => v.departEntry).sort((a, b) => a.etaMinutes - b.etaMinutes);
     const moving = vessels.filter((v) => v.status === "Underway in harbor");
     const anchored = vessels.filter((v) => /anchor/i.test(v.status));
-    const recent = (shipData.events || []).filter((e) => Date.now() - new Date(e.time) < 6 * 3600e3 && (e.type === "arrived" || e.type === "departed")).slice(0, 6);
+    const recent = events.filter((e) => Date.now() - new Date(e.time) < 6 * 3600e3 && (e.type === "arrived" || e.type === "departed")).slice(0, 6);
     const sec = (title, list, fn) => list.length ? `<h3>${title}</h3><ul class="ship-list">${list.map(fn).join("")}</ul>` : "";
     html = sec("Heading for the harbor", coming, shipRow) + sec("Heading out", leaving, shipRow) + sec("On the move in the harbor", moving, shipRow) +
       sec("Waiting at anchor", anchored, shipRow) + sec("Recently passed through", recent, eventRow);
-    if (!html) html = `<div class="empty">No big ships on the move right now. Check "All nearby" to see who's at the docks.</div>`;
+    if (!html) html = `<div class="empty">No freighters on the move right now. Check "All nearby" to see who's at the docks.</div>`;
   } else if (shipTab === "all") {
     const list = vessels.sort((a, b) => (a.canalDistanceNm ?? 99) - (b.canalDistanceNm ?? 99));
-    html = list.length ? `<ul class="ship-list">${list.map(shipRow).join("")}</ul>` : `<div class="empty">No ships reported nearby.</div>`;
+    html = list.length ? `<ul class="ship-list">${list.map(shipRow).join("")}</ul>` : `<div class="empty">No freighters reported nearby.</div>`;
   } else if (shipTab === "log") {
-    const log = (shipData.events || []).filter((e) => e.type === "arrived" || e.type === "departed");
+    const log = events.filter((e) => e.type === "arrived" || e.type === "departed");
     html = log.length ? `<p class="fine" style="margin-top:0">Ships through the Duluth canal pass under the Aerial Lift Bridge, so each one means a bridge lift.</p><ul class="ship-list">${log.slice(0, 40).map(eventRow).join("")}</ul>` : `<div class="empty">No passages logged yet.</div>`;
   }
   body.innerHTML = html;
@@ -718,7 +719,7 @@ function renderMap() {
   const showSmall = $("#showSmall").checked;
   for (const v of Object.values(shipData.vessels)) {
     const type = shipType(v);
-    if (v.lat == null || !(showSmall || isCommercial(v) || isFav(v) || type === "tour")) continue;
+    if (v.lat == null || (type === "personal" && !showSmall)) continue;
     const kind = v.approachEntry ? "approach" : v.departEntry ? "depart" : /anchor/i.test(v.status) ? "anchor" : v.status === "Underway in harbor" ? "harbor" : v.zone === "lake" ? "lake" : "dock";
     const sog = v.sog || 0, moving = sog >= 1;
     const cog = v.cog != null && v.cog < 360 ? v.cog : null, hdg = v.heading != null && v.heading < 360 ? v.heading : null;
@@ -781,7 +782,8 @@ function init() {
   updateSky(); setInterval(updateSky, 30 * 60e3);
   updateShips(); setInterval(updateShips, 2 * 60e3);
   $$(".ships .tabs button").forEach((b) => (b.onclick = () => { shipTab = b.dataset.tab; renderShips(); }));
-  $("#showSmall").onchange = () => { renderShips(); renderMap(); };
+  $("#showSmall").checked = store.get("showSmall", true);
+  $("#showSmall").onchange = () => { store.set("showSmall", $("#showSmall").checked); renderMap(); };
   $$(".horn").forEach((b) => (b.onclick = () => {
     const r = play(b.dataset.horn);
     if (b.dataset.horn === "waves") { b.classList.toggle("playing", r); return; }
