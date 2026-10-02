@@ -3,7 +3,7 @@ import { play } from "./sounds.js";
 import { sunTimes, moonPhase, moonTimes } from "./sky.js";
 import { GUIDE, FACTS } from "./guide.js";
 import { shipPhoto, photoOfTheDay } from "./photos.js";
-import { ENTRIES, eventText, matchesFavorites, isCommercial, loadState, flagOf, bearing, distanceNm } from "../scripts/harbor.mjs";
+import { ENTRIES, eventText, matchesFavorites, isCommercial, isFreighter, loadState, flagOf, bearing, distanceNm } from "../scripts/harbor.mjs";
 
 const CFG = window.CANAL_CONFIG;
 const TZ = "America/Chicago";
@@ -76,7 +76,7 @@ function inView(spot, v) {
 }
 function shipsInView(spot) {
   if (!spot || !shipData?.vessels) return [];
-  return Object.values(shipData.vessels).filter((v) => isCommercial(v) && inView(spot, v))
+  return Object.values(shipData.vessels).filter((v) => isFreighter(v) && inView(spot, v))
     .sort((a, b) => distanceNm(spot.lat, spot.lon, a.lat, a.lon) - distanceNm(spot.lat, spot.lon, b.lat, b.lon));
 }
 function updateCamBadges() {
@@ -84,7 +84,7 @@ function updateCamBadges() {
     const cam = allCams()[+tile.dataset.cam];
     const box = tile.querySelector(".inview");
     const list = cam ? shipsInView(spotFor(cam)).slice(0, 3) : [];
-    box.innerHTML = list.map((v) => `<span data-mmsi="${v.mmsi}" title="Tap for ship details">👁 ${esc(v.name || v.mmsi)}</span>`).join("");
+    box.innerHTML = list.map((v) => `<span data-mmsi="${v.mmsi}" title="Tap for ship details">${esc(v.name || v.mmsi)}</span>`).join("");
     $$("span", box).forEach((b) => (b.onclick = () => openShip(b.dataset.mmsi)));
   });
 }
@@ -582,6 +582,7 @@ function checkEvents(events) {
   if (!last) return; // first visit: don't flood with old events
   const p = prefs();
   const fresh = events.filter((e) => e.time > last && Date.now() - new Date(e.time) < 3600e3)
+    .filter((e) => isFreighter(shipData.vessels?.[e.mmsi] || e))
     .filter((e) => p[e.type])
     .filter((e) => !p.duluthOnly || e.entry === "duluth")
     .filter((e) => !p.favoritesOnly || matchesFavorites(e, shipData.vessels?.[e.mmsi], favs()));
@@ -665,7 +666,8 @@ function initMap() {
   L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 18, attribution: "© OpenStreetMap" }).addTo(map);
   coneLayer = L.layerGroup().addTo(map);
   shipLayer = L.layerGroup().addTo(map);
-  $("#showCones").onchange = drawCones;
+  $("#showCones").checked = store.get("showCones", false);
+  $("#showCones").onchange = () => { store.set("showCones", $("#showCones").checked); drawCones(); };
   drawCones();
   map.on("popupopen", (e) => wireShipButtons(e.popup.getElement()));
   renderTypeLegend();
@@ -683,7 +685,7 @@ const SHIP_TYPES = {
 function shipType(v) {
   const t = v.type, len = v.length || 0;
   if (TOUR_RE.test(v.name || "")) return "tour";
-  if ((t >= 70 && t <= 89) || (len >= 100 && !(t >= 60 && t <= 69))) return "freighter";
+  if (isFreighter(v)) return "freighter";
   if (t === 31 || t === 32 || t === 52 || t === 33) return "tug";
   if (t === 36 || t === 37) return "personal";
   if ((t >= 30 && t <= 59) || (t >= 60 && t <= 69) || /^(R\/V|USCG|CG)\b/i.test(v.name || "")) return "other";
@@ -726,7 +728,7 @@ function renderMap() {
     const label = `${v.name || v.mmsi} · ${SHIP_TYPES[type].label.replace(/ \(.*/, "")}${moving ? ` · ${knots(v)}` : ""}`;
     markers[v.mmsi] = L.marker([v.lat, v.lon], { icon, title: label, alt: label, zIndexOffset: SHIP_TYPES[type].z }).addTo(shipLayer)
       .bindPopup(`<b>${esc(v.name || v.mmsi)}</b>${isFav(v) ? " ★" : ""}<br>${esc(v.status || "")}<br>${esc([type === "tour" ? "Harbor tour boat" : v.typeName, ft(v.length), moving ? knots(v) : v.sog != null && "Stopped"].filter(Boolean).join(" · "))}${v.destination ? `<br>Destination: ${esc(v.destination)}` : ""}${v.etaMinutes != null ? `<br>At the entry around ${fmtTime(PASSAGE_MS(v))}` : ""}
-        ${seen.length ? `<br>👁 In view of ${esc(seen.map((c) => c.title).join(", "))}` : ""}
+        ${seen.length ? `<br>In view of ${esc(seen.map((c) => c.title).join(", "))}` : ""}
         <br>${seen.length ? `<button class="btn small" data-watch="${v.mmsi}">📷 Watch</button> ` : ""}<button class="btn small" data-open="${v.mmsi}">Details</button>`);
   }
   drawCones();

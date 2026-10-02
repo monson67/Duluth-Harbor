@@ -7,7 +7,7 @@ A web app that brings Canal Park in Duluth, MN to any phone or computer:
 - **Canal current** from the USGS sensor in the ship canal, drawn as the Aerial Lift Bridge's red/amber/green light, with a small animation of the water's flow
 - **Weather** from the National Weather Service: current conditions, the next few hours, alerts and the Duluth radar loop
 - **Ship traffic**: which ships are approaching, on the move or at anchor, a log of passages under the bridge, a live map, and the posted schedule from [Harbor Lookout](https://harborlookout.com/), the same one [Canal Park's schedule page](https://canalpark.com/duluth-ship-schedule/) shows
-- **Alerts** for arrivals and departures, or only your favorite ships (by name, MMSI/AIS number or IMO number)
+- **Alerts** for freighter arrivals and departures, or only your favorite ships (by name, MMSI/AIS number or IMO number)
 - **Next ship at the bridge**: a live countdown to the next arrival or departure, with the ship's photo, length, flag, and usual cargo or loaded/empty status
 - **Ship & camera map**: the approximate view of each camera, so you can tell which ship you're looking at. Camera tiles label the ships in view, and "Watch on camera" jumps to the right stream.
 - **Ship profiles**: tap any ship name for a photo, specs, destination and links

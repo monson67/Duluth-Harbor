@@ -88,6 +88,13 @@ export function typeName(code) {
   return "Other";
 }
 
+// Lake and ocean freighters: cargo ships and tankers, plus any big ship
+// that isn't a passenger vessel when its type is missing.
+export function isFreighter(v) {
+  const t = v.type, len = v.length || 0;
+  return (t >= 70 && t <= 89) || (len >= 100 && !(t >= 60 && t <= 69));
+}
+
 // Big commercial traffic we care about (freighters, tankers, tugs, cruise).
 export function isCommercial(v) {
   const t = v.type;

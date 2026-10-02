@@ -1,7 +1,7 @@
 // Run with: node --test tests/*.test.mjs
 import test from "node:test";
 import assert from "node:assert/strict";
-import { inHarbor, processUpdate, matchesFavorites, bearing, ENTRIES, eventText } from "../scripts/harbor.mjs";
+import { inHarbor, processUpdate, matchesFavorites, bearing, ENTRIES, eventText, isFreighter } from "../scripts/harbor.mjs";
 
 test("harbor vs lake classification", () => {
   assert.equal(inHarbor(46.7825, -92.0800), false, "just off the canal piers is lake");
@@ -90,3 +90,13 @@ test("far-off ship bound for Duluth is tracked, alert waits until it's close", a
   assert.equal(loadState({ length: 20, draught: 2 }), null);
 });
 
+
+test("only freighters count as freighters", () => {
+  assert.ok(isFreighter({ type: 70, length: 226 }), "laker");
+  assert.ok(isFreighter({ type: 80, length: 150 }), "tanker");
+  assert.ok(isFreighter({ length: 300 }), "big ship with no type");
+  assert.ok(!isFreighter({ type: 52, length: 28 }), "tug");
+  assert.ok(!isFreighter({ type: 60, length: 205 }), "cruise ship");
+  assert.ok(!isFreighter({ type: 37, length: 10 }), "pleasure craft");
+  assert.ok(!isFreighter({}), "unknown small boat");
+});

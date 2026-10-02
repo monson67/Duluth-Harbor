@@ -10,7 +10,7 @@
 //   LISTEN_SECONDS     how long to listen for ships (default 150)
 
 import { mkdir, readFile, writeFile } from "node:fs/promises";
-import { WATCH_BOX, processUpdate, eventText, matchesFavorites } from "./harbor.mjs";
+import { WATCH_BOX, processUpdate, eventText, matchesFavorites, isFreighter } from "./harbor.mjs";
 
 const OUT = process.env.OUT_DIR || "data";
 const LISTEN = Number(process.env.LISTEN_SECONDS || 150);
@@ -62,6 +62,7 @@ function listenForShips(apiKey, seconds) {
 
 async function sendAlerts(newEvents, vessels) {
   const topic = process.env.NTFY_TOPIC;
+  newEvents = newEvents.filter((e) => isFreighter(vessels[e.mmsi] || e)); // alerts are for freighters only
   if (!topic || !newEvents.length) return;
   let favorites = [];
   try { favorites = JSON.parse(await readFile("config/alerts.json", "utf8")).favorites || []; } catch {}

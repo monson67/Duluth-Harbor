@@ -231,7 +231,7 @@ h3 { font-size: .9rem; margin: 18px 0 6px; }
 .links li { margin: 4px 0; }
 
 /* Map */
-#map { height: 380px; border-radius: 10px; z-index: 0; background: var(--panel-2); }
+#map { aspect-ratio: 3 / 2; max-height: 85vh; width: 100%; border-radius: 10px; z-index: 0; background: var(--panel-2); }
 .ship-marker { pointer-events: none; }
 .ship-marker svg { display: block; overflow: visible; filter: drop-shadow(0 1px 1px rgba(0,0,0,.5)); }
 .ship-marker .hull { pointer-events: auto; cursor: pointer; }
@@ -285,7 +285,7 @@ input[type="text"], input:not([type]), .sheet input:not([type="checkbox"]) {
   .big { font-size: 1.8rem; }
   .brand h1 { font-size: .95rem; }
   .cam-grid.layout-4 { grid-template-columns: 1fr; }
-  #map { height: 300px; }
+  #map { aspect-ratio: auto; height: 300px; }
 }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: 0s !important; animation-iteration-count: 1 !important; }
