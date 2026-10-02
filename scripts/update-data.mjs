@@ -203,11 +203,42 @@ async function checkScheduleEmbed() {
     "| frame-ancestors:", (res.headers.get("content-security-policy") || "").match(/frame-ancestors[^;]*/)?.[0] || "(none)");
 }
 
+// The same arrivals and departures Harbor Lookout shows (and Canal Park's
+// schedule page embeds). Fetched here, once per run, so visitors never hit
+// Harbor Lookout directly. Only freighters with a scheduled visit are kept.
+const HARBOR_LOOKOUT_API = "https://prod-harbor-lookout-api-huckbngcchcfcwb8.centralus-01.azurewebsites.net";
+const PLACES = { 1: "Duluth Entry", 2: "Superior Entry", 3: "Two Harbors", 4: "Silver Bay" };
+async function updateSchedule() {
+  const d = await getJson(`${HARBOR_LOOKOUT_API}/api/Display/shipsForDisplay`);
+  const ft = (m) => (m ? Math.round(m * 3.281) : null);
+  const visits = (d.ships || [])
+    .filter((x) => x.schedule && PLACES[x.schedule.harborId] && !x.schedule.excludeFromSchedule)
+    .map(({ ship: s = {}, schedule: c }) => ({
+      name: s.name || c.name,
+      mmsi: s.mmsi || null,
+      imo: s.imo || null,
+      place: PLACES[c.harborId],
+      type: c.isArrival ? "arrival" : "departure",
+      time: c.eventTime || null,             // null = not yet known
+      state: c.shipState || null,            // e.g. "Moored"
+      note: c.showEventText ? c.eventText || null : null,
+      anchorFirst: !!c.willAnchorOnArrival,
+      cargo: c.cargo || null,
+      details: c.details || null,
+      lengthFt: ft(s.length), widthFt: ft(s.width),
+      built: s.yearBuilt || null,
+      country: s.countryCode || null,
+    }));
+  if (!visits.length) throw new Error("Harbor Lookout returned no scheduled ships");
+  console.log(`Harbor Lookout schedule: ${visits.length} ship visit(s).`);
+  return { updated: now(), source: "Harbor Lookout", sourceUrl: "https://harborlookout.com/", visits };
+}
+
 // --- Run everything ------------------------------------------------------------
 async function main() {
   await mkdir(OUT, { recursive: true });
   await checkScheduleEmbed().catch((e) => console.log("Harbor Lookout check failed:", e.message));
-  const jobs = { "ships.json": updateShips, "current.json": updateCurrent, "lake.json": updateLake, "cams.json": updateCams };
+  const jobs = { "ships.json": updateShips, "current.json": updateCurrent, "lake.json": updateLake, "cams.json": updateCams, "schedule.json": updateSchedule };
   const results = await Promise.allSettled(Object.values(jobs).map((fn) => fn()));
   const names = Object.keys(jobs);
   for (let i = 0; i < names.length; i++) {

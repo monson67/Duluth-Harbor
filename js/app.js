@@ -830,6 +830,57 @@ function focusMap(v) {
   markers[v.mmsi]?.openPopup();
 }
 
+// ---------- ship schedule (Harbor Lookout) ----------
+// The updater copies Harbor Lookout's schedule into data/schedule.json every
+// ~10 minutes; the page re-reads it on the same rhythm.
+const PLACE_ORDER = ["Duluth Entry", "Superior Entry", "Two Harbors", "Silver Bay"];
+const dayKey = (d) => new Date(d).toLocaleDateString("en-CA", { timeZone: TZ });
+function partOfDay(d) {
+  const h = +new Date(d).toLocaleString("en-US", { timeZone: TZ, hour: "numeric", hour12: false }) % 24;
+  return h < 5 ? "early morning" : h < 9 ? "morning" : h < 11 ? "late morning" : h < 14 ? "early afternoon" : h < 17 ? "afternoon" : h < 22 ? "evening" : "night";
+}
+// Today and tomorrow get exact times; later visits only a part of the day,
+// the same way Harbor Lookout shows them.
+function schedWhen(v) {
+  if (!v.time) return v.type === "departure" ? "Not set yet" : "Time not set";
+  const t = new Date(v.time), now = Date.now();
+  if (t < now - 3600e3) return "Overdue";
+  const today = dayKey(now), tomorrow = dayKey(now + 864e5);
+  if (dayKey(t) === today) return `Today ${fmtTime(t)}`;
+  if (dayKey(t) === tomorrow) return `Tomorrow ${fmtTime(t)}`;
+  return `${fmtDay(t)} · ${partOfDay(t)}`;
+}
+const flagEmoji = (cc) => (cc && /^[a-z]{2}$/i.test(cc) ? String.fromCodePoint(...[...cc.toUpperCase()].map((c) => 0x1f1a5 + c.charCodeAt(0))) : "");
+let schedule = null;
+function renderShipSchedule() {
+  const box = $("#schedList");
+  if (!schedule?.visits?.length) { box.innerHTML = `<div class="empty">The schedule isn't available right now. <a href="https://harborlookout.com/" target="_blank" rel="noopener">Open Harbor Lookout ↗</a></div>`; return; }
+  $("#schedAge").textContent = `updated ${ago(schedule.updated)}`;
+  const byTime = (a, b) => (a.time ? Date.parse(a.time) : Infinity) - (b.time ? Date.parse(b.time) : Infinity) || a.name.localeCompare(b.name);
+  const places = [...new Set([...PLACE_ORDER, ...schedule.visits.map((v) => v.place)])];
+  box.innerHTML = places.map((place) => {
+    const list = schedule.visits.filter((v) => v.place === place).sort(byTime);
+    if (!list.length) return "";
+    return `<h3 class="sched-place">${esc(place)}</h3><ul class="sched-items">${list.map((v) => {
+      const known = v.mmsi && shipData?.vessels?.[v.mmsi];
+      const name = known ? `<button class="linkish" data-open="${esc(v.mmsi)}">${esc(v.name)}</button>` : esc(v.name);
+      const arriving = v.type === "arrival";
+      const facts = [v.cargo && `Cargo: ${v.cargo}`, v.lengthFt && `${v.lengthFt.toLocaleString()} ft`, v.built && `built ${v.built}`].filter(Boolean);
+      const extra = [v.state === "Moored" && "at dock now", v.anchorFirst && "will anchor first", v.note].filter(Boolean);
+      return `<li class="sched-item">
+        <div class="sched-top"><span class="sched-name">${name}</span><span class="sched-when">${esc(schedWhen(v))}</span></div>
+        <div class="sched-meta"><span class="tag ${arriving ? "in" : "out"}">${arriving ? "Arriving" : "Departing"}</span>${esc(facts.join(" · "))}${extra.length ? ` · ${esc(extra.join(" · "))}` : ""}${v.country ? ` <span class="sched-flag" title="${esc(v.country.toUpperCase())}">${flagEmoji(v.country)}</span>` : ""}</div>
+        ${v.details ? `<details class="sched-details"><summary>Itinerary</summary>${esc(v.details)}</details>` : ""}
+      </li>`;
+    }).join("")}</ul>`;
+  }).join("");
+  wireShipButtons(box);
+}
+async function updateSchedule() {
+  try { schedule = await getJson(CFG.scheduleDataUrl || "data/schedule.json"); } catch {}
+  renderShipSchedule();
+}
+
 // ---------- guide & photo of the day ----------
 function initGuide() {
   const show = (key) => {
@@ -871,6 +922,7 @@ function init() {
   updateSky(); setInterval(updateSky, 30 * 60e3);
   updateShips(); setInterval(updateShips, 2 * 60e3);
   updateLive(); setInterval(updateLive, 20e3);
+  updateSchedule(); setInterval(updateSchedule, 10 * 60e3);
   $$(".ships .tabs button").forEach((b) => (b.onclick = () => { shipTab = b.dataset.tab; renderShips(); }));
   $("#showSmall").checked = store.get("showSmall", false);
   $("#showSmall").onchange = () => { store.set("showSmall", $("#showSmall").checked); renderMap(); };

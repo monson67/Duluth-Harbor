@@ -324,6 +324,18 @@ input[type="text"], input:not([type]), .sheet input:not([type="checkbox"]) {
 .map-legend { display: flex; flex-wrap: wrap; gap: 4px 14px; margin-top: 8px; }
 .map-legend i { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 5px; vertical-align: -1px; }
 .pill.ships-live { color: #fff; background: #2e7d32; border-color: #2e7d32; }
+/* Ship schedule */
+.sched-list { max-height: 460px; overflow-y: auto; margin: 0 -4px; padding: 0 4px; overscroll-behavior: contain; }
+.sched-place { position: sticky; top: 0; z-index: 1; margin: 0; padding: 8px 0 6px; font-size: .78rem; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); background: var(--panel); }
+.sched-items { list-style: none; margin: 0 0 6px; padding: 0; }
+.sched-item { padding: 8px 0; border-top: 1px solid var(--line); }
+.sched-top { display: flex; justify-content: space-between; gap: 10px; align-items: baseline; }
+.sched-name { font-weight: 700; }
+.sched-when { font-size: .85rem; white-space: nowrap; color: var(--ink); }
+.sched-meta { font-size: .8rem; color: var(--muted); margin-top: 3px; }
+.sched-flag { opacity: .6; font-size: .75rem; }
+.sched-details { font-size: .8rem; color: var(--muted); margin-top: 4px; }
+.sched-details summary { cursor: pointer; color: var(--accent, #4fb3e8); }
 .map-views { display: flex; border: 2px solid rgba(0,0,0,.2); border-radius: 6px; overflow: hidden; background: #fff; }
 .map-view-btn { font: 600 13px system-ui, sans-serif; padding: 6px 10px; border: 0; background: #fff; color: #222; cursor: pointer; }
 .map-view-btn + .map-view-btn { border-left: 1px solid rgba(0,0,0,.15); }
