@@ -663,21 +663,43 @@ function drawCones() {
 function initMap() {
   if (!window.L) { $("#map").innerHTML = `<div class="empty">Map couldn't load.</div>`; return; }
   const { lat, lon } = CFG.location;
-  map = L.map("map", { scrollWheelZoom: false }).setView([lat - 0.03, lon + 0.03], 11);
-  // One button flips between the Duluth close-up and all of Lake Superior.
-  const LAKE = [[46.4, -92.2], [49.0, -84.4]];
-  const ViewToggle = L.Control.extend({
+  map = L.map("map", { scrollWheelZoom: false });
+  // Three preset views. "Duluth" keeps Duluth and Superior in the lower left
+  // so more of the lake shows; "Harbor" fits the Duluth-Superior harbor.
+  const TWIN_PORTS_MID = [46.745, -92.10];
+  const VIEWS = {
+    harbor: () => map.fitBounds([[46.69, -92.21], [46.80, -91.99]]),
+    duluth: () => {
+      const z = 11, size = map.getSize();
+      const p = map.project(TWIN_PORTS_MID, z).add([size.x * 0.25, -size.y * 0.25]);
+      map.setView(map.unproject(p, z), z);
+    },
+    lake: () => map.fitBounds([[46.4, -92.2], [49.0, -84.4]]),
+  };
+  const ViewButtons = L.Control.extend({
     onAdd() {
-      const b = L.DomUtil.create("button", "map-view-btn");
-      b.type = "button";
-      const label = () => (b.textContent = map.getZoom() <= 8 ? "Duluth" : "Whole lake");
-      b.onclick = (e) => { L.DomEvent.stop(e); if (map.getZoom() <= 8) map.setView([lat - 0.03, lon + 0.03], 11); else map.fitBounds(LAKE); };
-      map.on("zoomend", label); label();
-      L.DomEvent.disableClickPropagation(b);
-      return b;
+      const box = L.DomUtil.create("div", "map-views");
+      let presetMove = false;
+      const buttons = [["harbor", "Harbor"], ["duluth", "Duluth"], ["lake", "Whole lake"]].map(([key, text]) => {
+        const b = L.DomUtil.create("button", "map-view-btn", box);
+        b.type = "button"; b.textContent = text; b.dataset.view = key;
+        b.onclick = (e) => { L.DomEvent.stop(e); show(key); };
+        return b;
+      });
+      const show = (key) => {
+        presetMove = true; VIEWS[key]();
+        buttons.forEach((b) => b.classList.toggle("on", b.dataset.view === key));
+        map.once("moveend", () => (presetMove = false));
+      };
+      // Dragging or zooming by hand means no preset is current.
+      map.on("dragstart zoomstart", () => { if (!presetMove) buttons.forEach((b) => b.classList.remove("on")); });
+      L.DomEvent.disableClickPropagation(box);
+      this.show = show;
+      return box;
     },
   });
-  new ViewToggle({ position: "topright" }).addTo(map);
+  const views = new ViewButtons({ position: "topright" }).addTo(map);
+  views.show("duluth");
   L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 18, attribution: "© OpenStreetMap" }).addTo(map);
   coneLayer = L.layerGroup().addTo(map);
   shipLayer = L.layerGroup().addTo(map);
