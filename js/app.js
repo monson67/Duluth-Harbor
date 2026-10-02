@@ -575,10 +575,10 @@ function applyLive() {
     describe(v);
   }
 }
-// Both ship badges (Next ship and Ship traffic) say "● Live" while live
+// The ship badges (Next ship, Ship traffic and the map) say "● Live" while live
 // positions are flowing, otherwise how old the 10-minute data is.
 function showShipAge() {
-  for (const pill of [$("#shipsAge"), $("#nextAge")]) {
+  for (const pill of [$("#shipsAge"), $("#nextAge"), $("#mapAge")]) {
     pill.classList.toggle("ships-live", !!liveOn());
     pill.textContent = liveOn() ? "● Live" : !shipData ? "offline" : shipData.updated ? `updated ${ago(shipData.updated)}` : "not set up";
     pill.title = liveOn() ? "Ship positions update every 20 seconds" : "Ship positions update about every 10 minutes";
