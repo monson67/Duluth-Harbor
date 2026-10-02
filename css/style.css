@@ -94,13 +94,14 @@ h3 { font-size: .9rem; margin: 18px 0 6px; }
       "cams  side"
       "ships side"
       "map   map"
-      "lake  lake"
+      "lake  weather"
+      "guide weather"
       "guide photo"
       "guide horns"
       "guide explore";
   }
   .next { grid-area: next; } .cams { grid-area: cams; } .side { grid-area: side; }
-  .ships { grid-area: ships; } .mapbox { grid-area: map; } .lake { grid-area: lake; }
+  .ships { grid-area: ships; } .mapbox { grid-area: map; } .lake { grid-area: lake; } .weather { grid-area: weather; }
   .guide { grid-area: guide; } .photo { grid-area: photo; } .horns { grid-area: horns; } .explore { grid-area: explore; }
 }
 .side { display: grid; gap: 14px; align-content: start; min-width: 0; }
