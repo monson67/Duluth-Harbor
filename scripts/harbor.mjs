@@ -24,10 +24,11 @@ export const HARBOR_POLYGON = [
   [46.7880, -92.0950],
 ];
 
-// Area watched for AIS messages: the harbor plus the western end of Lake
-// Superior (out past the Apostle Islands and up the North Shore), so ships
-// show up hours before they reach the canal.
-export const WATCH_BOX = [[46.40, -92.35], [47.75, -90.20]];
+// Area watched for AIS messages: all of Lake Superior, from the Duluth-Superior
+// harbor to the Soo Locks and up to Nipigon Bay.
+export const WATCH_BOX = [[46.35, -92.35], [49.05, -84.30]];
+// Ships farther than this from the canal are "elsewhere on the lake".
+const NEAR_DULUTH_NM = 25;
 
 // Destinations that mean "coming to the Twin Ports".
 const TWIN_PORTS = /DULUTH|SUPERIOR|DLH|USDLH|SUW|USSUW|TWIN ?PORT/i;
@@ -202,6 +203,8 @@ export function describe(v) {
 
   if (v.approachEntry) v.status = `Approaching ${ENTRIES[v.approachEntry].name}`;
   else if (v.departEntry) v.status = `Heading out the ${ENTRIES[v.departEntry].name}`;
+  else if (v.zone === "lake" && !moving && v.canalDistanceNm > NEAR_DULUTH_NM)
+    v.status = v.navStatus === 5 ? "At dock elsewhere on the lake" : v.navStatus === 1 ? "At anchor on the lake" : "Stopped on the lake";
   else if (v.zone === "lake" && anchored) v.status = "At anchor off Duluth";
   else if (v.zone === "lake") v.status = "Underway on the lake";
   else if (moored) v.status = "At dock in harbor";

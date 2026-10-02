@@ -1,7 +1,7 @@
 // Run with: node --test tests/*.test.mjs
 import test from "node:test";
 import assert from "node:assert/strict";
-import { inHarbor, processUpdate, matchesFavorites, bearing, ENTRIES, eventText, isFreighter } from "../scripts/harbor.mjs";
+import { inHarbor, processUpdate, matchesFavorites, bearing, ENTRIES, eventText, isFreighter, describe } from "../scripts/harbor.mjs";
 
 test("harbor vs lake classification", () => {
   assert.equal(inHarbor(46.7825, -92.0800), false, "just off the canal piers is lake");
@@ -99,4 +99,10 @@ test("only freighters count as freighters", () => {
   assert.ok(!isFreighter({ type: 60, length: 205 }), "cruise ship");
   assert.ok(!isFreighter({ type: 37, length: 10 }), "pleasure craft");
   assert.ok(!isFreighter({}), "unknown small boat");
+});
+
+test("stopped ships far up the lake aren't 'off Duluth'", () => {
+  assert.equal(describe({ lat: 48.43, lon: -89.21, sog: 0, navStatus: 5 }).status, "At dock elsewhere on the lake", "Thunder Bay");
+  assert.equal(describe({ lat: 46.55, lon: -87.38, sog: 0, navStatus: 1 }).status, "At anchor on the lake", "Marquette");
+  assert.equal(describe({ lat: 46.86, lon: -91.95, sog: 0, navStatus: 1 }).status, "At anchor off Duluth", "Duluth anchorage");
 });

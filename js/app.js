@@ -532,12 +532,12 @@ function renderShips() {
     const coming = vessels.filter((v) => v.approachEntry).sort((a, b) => a.etaMinutes - b.etaMinutes);
     const leaving = vessels.filter((v) => v.departEntry).sort((a, b) => a.etaMinutes - b.etaMinutes);
     const moving = vessels.filter((v) => v.status === "Underway in harbor");
-    const anchored = vessels.filter((v) => /anchor/i.test(v.status));
+    const anchored = vessels.filter((v) => v.status === "At anchor off Duluth");
     const recent = events.filter((e) => Date.now() - new Date(e.time) < 6 * 3600e3 && (e.type === "arrived" || e.type === "departed")).slice(0, 6);
     const sec = (title, list, fn) => list.length ? `<h3>${title}</h3><ul class="ship-list">${list.map(fn).join("")}</ul>` : "";
     html = sec("Heading for the harbor", coming, shipRow) + sec("Heading out", leaving, shipRow) + sec("On the move in the harbor", moving, shipRow) +
       sec("Waiting at anchor", anchored, shipRow) + sec("Recently passed through", recent, eventRow);
-    if (!html) html = `<div class="empty">No freighters on the move right now. Check "All nearby" to see who's at the docks.</div>`;
+    if (!html) html = `<div class="empty">No freighters on the move right now. Check "All on the lake" to see who's at the docks.</div>`;
   } else if (shipTab === "all") {
     const list = vessels.sort((a, b) => (a.canalDistanceNm ?? 99) - (b.canalDistanceNm ?? 99));
     html = list.length ? `<ul class="ship-list">${list.map(shipRow).join("")}</ul>` : `<div class="empty">No freighters reported nearby.</div>`;
@@ -664,6 +664,20 @@ function initMap() {
   if (!window.L) { $("#map").innerHTML = `<div class="empty">Map couldn't load.</div>`; return; }
   const { lat, lon } = CFG.location;
   map = L.map("map", { scrollWheelZoom: false }).setView([lat - 0.03, lon + 0.03], 11);
+  // One button flips between the Duluth close-up and all of Lake Superior.
+  const LAKE = [[46.4, -92.2], [49.0, -84.4]];
+  const ViewToggle = L.Control.extend({
+    onAdd() {
+      const b = L.DomUtil.create("button", "map-view-btn");
+      b.type = "button";
+      const label = () => (b.textContent = map.getZoom() <= 8 ? "Duluth" : "Whole lake");
+      b.onclick = (e) => { L.DomEvent.stop(e); if (map.getZoom() <= 8) map.setView([lat - 0.03, lon + 0.03], 11); else map.fitBounds(LAKE); };
+      map.on("zoomend", label); label();
+      L.DomEvent.disableClickPropagation(b);
+      return b;
+    },
+  });
+  new ViewToggle({ position: "topright" }).addTo(map);
   L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 18, attribution: "© OpenStreetMap" }).addTo(map);
   coneLayer = L.layerGroup().addTo(map);
   shipLayer = L.layerGroup().addTo(map);
@@ -720,7 +734,7 @@ function renderMap() {
   for (const v of Object.values(shipData.vessels)) {
     const type = shipType(v);
     if (v.lat == null || (type === "personal" && !showSmall)) continue;
-    const kind = v.approachEntry ? "approach" : v.departEntry ? "depart" : /anchor/i.test(v.status) ? "anchor" : v.status === "Underway in harbor" ? "harbor" : v.zone === "lake" ? "lake" : "dock";
+    const kind = v.approachEntry ? "approach" : v.departEntry ? "depart" : /anchor/i.test(v.status) ? "anchor" : v.status === "Underway in harbor" ? "harbor" : /^(At dock|Stopped)/.test(v.status || "") ? "dock" : v.zone === "lake" ? "lake" : "dock";
     const sog = v.sog || 0, moving = sog >= 1;
     const cog = v.cog != null && v.cog < 360 ? v.cog : null, hdg = v.heading != null && v.heading < 360 ? v.heading : null;
     const rot = (moving ? cog ?? hdg : hdg) ?? 0;
