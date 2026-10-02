@@ -58,6 +58,10 @@ window.CANAL_CONFIG = {
   // To turn live positions off, change this to "" and the site goes back to
   // the 10-minute updates.
   liveUrl: "https://canal-park-live.canal-park-live.workers.dev/live",
+  // Ship schedule (Harbor Lookout): the copy the updater saves at noon and
+  // midnight, and the helper address the schedule's refresh button uses.
+  scheduleDataUrl: "data/schedule.json",
+  scheduleRefreshUrl: "https://canal-park-live.canal-park-live.workers.dev/schedule",
   // Extra info about well-known ships (usual cargo, photos, notes).
   fleetUrl: "config/fleet.json",
 
@@ -65,11 +69,4 @@ window.CANAL_CONFIG = {
   // boat", so list them here to give them their own shape on the map.
   tourBoats: ["VISTA STAR", "VISTA QUEEN"],
 
-  // Posted ship schedule: Harbor Lookout, the same schedule Canal Park's
-  // ship-schedule page shows. It appears inside the app's "Posted schedule" tab.
-  scheduleSource: { name: "Harbor Lookout", url: "https://harborlookout.com/" },
-  scheduleLinks: [
-    { name: "Canal Park ship schedule page", url: "https://canalpark.com/duluth-ship-schedule/" },
-    { name: "VesselFinder — Port of Duluth", url: "https://www.vesselfinder.com/ports/USDLH001" },
-  ],
 };

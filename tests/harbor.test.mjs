@@ -1,7 +1,7 @@
 // Run with: node --test tests/*.test.mjs
 import test from "node:test";
 import assert from "node:assert/strict";
-import { inHarbor, processUpdate, matchesFavorites, bearing, ENTRIES, eventText, isFreighter, describe } from "../scripts/harbor.mjs";
+import { inHarbor, processUpdate, matchesFavorites, bearing, ENTRIES, eventText, isFreighter, describe, lastScheduleSlot, simplifySchedule } from "../scripts/harbor.mjs";
 
 test("harbor vs lake classification", () => {
   assert.equal(inHarbor(46.7825, -92.0800), false, "just off the canal piers is lake");
@@ -105,4 +105,27 @@ test("stopped ships far up the lake aren't 'off Duluth'", () => {
   assert.equal(describe({ lat: 48.43, lon: -89.21, sog: 0, navStatus: 5 }).status, "At dock elsewhere on the lake", "Thunder Bay");
   assert.equal(describe({ lat: 46.55, lon: -87.38, sog: 0, navStatus: 1 }).status, "At anchor on the lake", "Marquette");
   assert.equal(describe({ lat: 46.86, lon: -91.95, sog: 0, navStatus: 1 }).status, "At anchor off Duluth", "Duluth anchorage");
+});
+
+test("schedule refreshes at noon and midnight Duluth time", () => {
+  // 3:20 PM CDT on Oct 2 -> noon CDT (17:00 UTC)
+  assert.equal(new Date(lastScheduleSlot(Date.parse("2026-10-02T20:20:05Z"))).toISOString(), "2026-10-02T17:00:00.000Z");
+  // 1:30 AM CDT on Oct 3 -> midnight CDT (05:00 UTC)
+  assert.equal(new Date(lastScheduleSlot(Date.parse("2026-10-03T06:30:00Z"))).toISOString(), "2026-10-03T05:00:00.000Z");
+  // 6 AM CST in January -> midnight CST (06:00 UTC)
+  assert.equal(new Date(lastScheduleSlot(Date.parse("2027-01-10T12:00:00Z"))).toISOString(), "2027-01-10T06:00:00.000Z");
+});
+
+test("Harbor Lookout schedule is simplified to freighter visits", () => {
+  const d = { ships: [
+    { ship: { name: "EDWIN H GOTT", mmsi: "366971370", length: 306, yearBuilt: 1979, countryCode: "us", shipImageUrl: "https://cdn.harborlookout.com/x.jpg", imageCreator: "S B" },
+      schedule: { harborId: 3, isArrival: true, eventTime: "2026-10-03T09:00:00Z", cargo: "Empty" } },
+    { ship: { name: "HELEN H" }, schedule: { harborId: 0, isArrival: false } },
+  ] };
+  const s = simplifySchedule(d, "2026-10-02T22:00:00Z");
+  assert.equal(s.visits.length, 1, "tugs (harbor 0) are left out");
+  const v = s.visits[0];
+  assert.equal(v.place, "Two Harbors");
+  assert.equal(v.lengthFt, 1004);
+  assert.match(v.photo, /cdn-cgi\/image\/width=160/);
 });

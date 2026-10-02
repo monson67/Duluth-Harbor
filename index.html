@@ -111,10 +111,11 @@
 
       <!-- Ship schedule (Harbor Lookout) -->
       <section class="panel schedule" aria-labelledby="schedTitle">
-        <div class="panel-head"><h2 id="schedTitle">Ship schedule</h2><span class="pill" id="schedAge">…</span></div>
+        <div class="panel-head"><h2 id="schedTitle">Ship schedule</h2>
+          <span class="sched-head"><span class="pill" id="schedAge">…</span><button class="btn small icon" id="schedRefresh" title="Check Harbor Lookout for the latest schedule" aria-label="Refresh the ship schedule">↻</button></span></div>
         <div id="schedList" class="sched-list" tabindex="0" aria-label="Expected arrivals and departures"><div class="empty">Loading the schedule…</div></div>
         <p class="fine">Estimates from <a href="https://harborlookout.com/" target="_blank" rel="noopener">Harbor Lookout</a>, the schedule
-          <a href="https://canalpark.com/duluth-ship-schedule/" target="_blank" rel="noopener">Canal Park</a> posts. Times change often, especially departures.</p>
+          <a href="https://canalpark.com/duluth-ship-schedule/" target="_blank" rel="noopener">Canal Park</a> posts. Times change often, especially departures. Ship photos via Harbor Lookout; hover for the photographer.</p>
       </section>
     </div>
 
@@ -128,7 +129,6 @@
         <button role="tab" data-tab="coming" class="on">Coming &amp; going</button>
         <button role="tab" data-tab="all">All on the lake</button>
         <button role="tab" data-tab="log">Bridge log</button>
-        <button role="tab" data-tab="schedule">Posted schedule</button>
       </div>
       <div id="shipsBody" class="ships-body"></div>
     </section>

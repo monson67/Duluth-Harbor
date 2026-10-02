@@ -314,3 +314,47 @@ export function flagOf(mmsi) {
   if (!c) return null;
   return { country: c, lakes: c === "United States" || c === "Canada" };
 }
+
+// --- Ship schedule (Harbor Lookout) ------------------------------------------
+// The arrivals and departures Harbor Lookout shows (and Canal Park's schedule
+// page embeds). Used by the updater (noon and midnight) and by the live helper
+// (the schedule's refresh button).
+export const HARBOR_LOOKOUT_API = "https://prod-harbor-lookout-api-huckbngcchcfcwb8.centralus-01.azurewebsites.net";
+const PLACES = { 1: "Duluth Entry", 2: "Superior Entry", 3: "Two Harbors", 4: "Silver Bay" };
+// Small (~5 KB) copies of Harbor Lookout's ship photos; the originals are several MB.
+const thumb = (url) => (url ? `https://harborlookout.com/cdn-cgi/image/width=160,quality=70,format=auto/${url}` : null);
+
+export function simplifySchedule(d, nowIso) {
+  const ft = (m) => (m ? Math.round(m * 3.281) : null);
+  const visits = (d.ships || [])
+    .filter((x) => x.schedule && PLACES[x.schedule.harborId] && !x.schedule.excludeFromSchedule)
+    .map(({ ship: s = {}, schedule: c }) => ({
+      name: s.name || c.name,
+      mmsi: s.mmsi || null,
+      imo: s.imo || null,
+      place: PLACES[c.harborId],
+      type: c.isArrival ? "arrival" : "departure",
+      time: c.eventTime || null,             // null = not yet known
+      state: c.shipState || null,            // e.g. "Moored"
+      note: c.showEventText ? c.eventText || null : null,
+      anchorFirst: !!c.willAnchorOnArrival,
+      cargo: c.cargo || null,
+      details: c.details || null,
+      lengthFt: ft(s.length), widthFt: ft(s.width),
+      built: s.yearBuilt || null,
+      country: s.countryCode || null,
+      photo: thumb(s.shipImageUrl),
+      photoBy: s.imageCreator || null,
+    }));
+  if (!visits.length) throw new Error("Harbor Lookout returned no scheduled ships");
+  return { updated: nowIso, source: "Harbor Lookout", sourceUrl: "https://harborlookout.com/", visits };
+}
+
+// The schedule refreshes at noon and midnight Duluth time. Returns the most
+// recent of those moments (as a timestamp in ms).
+export function lastScheduleSlot(nowMs) {
+  const p = Object.fromEntries(new Intl.DateTimeFormat("en-US", { timeZone: "America/Chicago", hour: "numeric", minute: "numeric", second: "numeric", hourCycle: "h23" })
+    .formatToParts(new Date(nowMs)).map((x) => [x.type, +x.value]));
+  const sinceSlot = ((p.hour % 12) * 3600 + p.minute * 60 + p.second) * 1000;
+  return nowMs - sinceSlot - (nowMs % 1000);
+}

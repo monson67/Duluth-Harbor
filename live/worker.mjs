@@ -8,7 +8,7 @@
 //
 // The site falls back to the regular 10-minute data whenever this is down.
 
-import { WATCH_BOX, applyMessage } from "../scripts/harbor.mjs";
+import { WATCH_BOX, applyMessage, HARBOR_LOOKOUT_API, simplifySchedule } from "../scripts/harbor.mjs";
 
 const IDLE_MS = 10 * 60e3;   // hang up after this long with no visitors
 const STALE_MS = 5 * 60e3;   // reconnect if aisstream goes quiet this long
@@ -99,6 +99,17 @@ export class Feed {
 // Visitors share one snapshot per few seconds, so a crowd costs no more
 // helper time than one person.
 let cached = null;
+// The schedule's refresh button: fetch Harbor Lookout's schedule, but at
+// most once every 5 minutes no matter how often people press it.
+let schedCache = null;
+async function freshSchedule() {
+  if (schedCache && Date.now() - schedCache.at < 5 * 60e3) return schedCache.body;
+  const res = await fetch(`${HARBOR_LOOKOUT_API}/api/Display/shipsForDisplay`, { signal: AbortSignal.timeout(15000) });
+  if (!res.ok) throw new Error(`Harbor Lookout ${res.status}`);
+  const body = JSON.stringify(simplifySchedule(await res.json(), new Date().toISOString()));
+  schedCache = { at: Date.now(), body };
+  return body;
+}
 
 export default {
   async fetch(request, env) {
@@ -111,6 +122,13 @@ export default {
       Vary: "Origin",
     };
     if (request.method === "OPTIONS") return new Response(null, { headers: cors });
+    if (url.pathname === "/schedule") {
+      try {
+        return new Response(await freshSchedule(), { headers: { ...cors, "Content-Type": "application/json", "Cache-Control": "no-store" } });
+      } catch (err) {
+        return new Response(JSON.stringify({ error: err.message }), { status: 502, headers: { ...cors, "Content-Type": "application/json" } });
+      }
+    }
     if (url.pathname !== "/live") return new Response("Canal Park live ship positions: see /live", { headers: cors });
 
     if (!cached || Date.now() - cached.at > 8e3) {
