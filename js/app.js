@@ -664,8 +664,6 @@ function initMap() {
   map = L.map("map", { scrollWheelZoom: false }).setView([lat - 0.03, lon + 0.03], 11);
   L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 18, attribution: "© OpenStreetMap" }).addTo(map);
   coneLayer = L.layerGroup().addTo(map);
-  L.circleMarker([lat, lon], { radius: 6, color: "#d92d2d", fillOpacity: 1 }).addTo(map).bindTooltip("Aerial Lift Bridge");
-  L.circleMarker([ENTRIES.superior.lat, ENTRIES.superior.lon], { radius: 5, color: "#555", fillOpacity: 1 }).addTo(map).bindTooltip("Superior Entry");
   shipLayer = L.layerGroup().addTo(map);
   $("#showCones").onchange = drawCones;
   drawCones();
