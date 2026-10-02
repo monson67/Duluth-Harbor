@@ -324,6 +324,9 @@ const PLACES = { 1: "Duluth Entry", 2: "Superior Entry", 3: "Two Harbors", 4: "S
 // Small (~5 KB) copies of Harbor Lookout's ship photos; the originals are several MB.
 const thumb = (url) => (url ? `https://harborlookout.com/cdn-cgi/image/width=160,quality=70,format=auto/${url}` : null);
 
+// Bump when the saved fields change, so the updater refetches right away.
+export const SCHEDULE_VERSION = 2;
+
 export function simplifySchedule(d, nowIso) {
   const ft = (m) => (m ? Math.round(m * 3.281) : null);
   const visits = (d.ships || [])
@@ -347,7 +350,7 @@ export function simplifySchedule(d, nowIso) {
       photoBy: s.imageCreator || null,
     }));
   if (!visits.length) throw new Error("Harbor Lookout returned no scheduled ships");
-  return { updated: nowIso, source: "Harbor Lookout", sourceUrl: "https://harborlookout.com/", visits };
+  return { version: SCHEDULE_VERSION, updated: nowIso, source: "Harbor Lookout", sourceUrl: "https://harborlookout.com/", visits };
 }
 
 // The schedule refreshes at noon and midnight Duluth time. Returns the most

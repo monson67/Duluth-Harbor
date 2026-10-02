@@ -10,7 +10,7 @@
 //   LISTEN_SECONDS     how long to listen for ships (default 150)
 
 import { mkdir, readFile, writeFile } from "node:fs/promises";
-import { WATCH_BOX, processUpdate, eventText, matchesFavorites, isFreighter, HARBOR_LOOKOUT_API, simplifySchedule, lastScheduleSlot } from "./harbor.mjs";
+import { WATCH_BOX, processUpdate, eventText, matchesFavorites, isFreighter, HARBOR_LOOKOUT_API, simplifySchedule, lastScheduleSlot, SCHEDULE_VERSION } from "./harbor.mjs";
 
 const OUT = process.env.OUT_DIR || "data";
 const LISTEN = Number(process.env.LISTEN_SECONDS || 150);
@@ -207,7 +207,7 @@ async function checkScheduleEmbed() {
 // Other runs keep the copy that's already published.
 async function updateSchedule() {
   const prev = await loadPrevious("schedule.json");
-  if (prev?.updated && Date.parse(prev.updated) >= lastScheduleSlot(Date.now())) return prev;
+  if (prev?.version === SCHEDULE_VERSION && Date.parse(prev.updated) >= lastScheduleSlot(Date.now())) return prev;
   const out = simplifySchedule(await getJson(`${HARBOR_LOOKOUT_API}/api/Display/shipsForDisplay`), now());
   console.log(`Harbor Lookout schedule: ${out.visits.length} ship visit(s).`);
   return out;
