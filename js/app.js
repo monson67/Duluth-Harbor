@@ -3,7 +3,7 @@ import { play } from "./sounds.js";
 import { sunTimes, moonPhase, moonTimes } from "./sky.js";
 import { GUIDE, FACTS } from "./guide.js";
 import { shipPhoto, photoOfTheDay } from "./photos.js";
-import { ENTRIES, eventText, matchesFavorites, isFreighter, loadState, flagOf, bearing, distanceNm } from "../scripts/harbor.mjs";
+import { ENTRIES, eventText, matchesFavorites, isFreighter, describe, loadState, flagOf, bearing, distanceNm } from "../scripts/harbor.mjs";
 
 const CFG = window.CANAL_CONFIG;
 const TZ = "America/Chicago";
@@ -560,16 +560,50 @@ function renderSchedule(body) {
     <p class="fine">If the schedule area stays blank, use the full-screen button.</p>`;
 }
 
-async function updateShips() {
-  try {
-    shipData = await getJson(CFG.shipsDataUrl);
-    $("#shipsAge").textContent = shipData.updated ? `updated ${ago(shipData.updated)}` : "not set up";
-    checkEvents(shipData.events || []);
-  } catch { $("#shipsAge").textContent = "offline"; }
+// Ship data comes from two places: the 10-minute updater (ships.json, which
+// also has alerts and the bridge log) and, when it's running, the live helper
+// (positions every few seconds). Live positions are layered on top; if the
+// helper is down, the site simply shows the 10-minute data.
+let live = null, liveAt = 0;
+const liveOn = () => live?.connected && live.vessels?.length && Date.now() - liveAt < 90e3;
+function applyLive() {
+  if (!shipData || !live?.vessels) return;
+  shipData.vessels ||= {};
+  for (const lv of live.vessels) {
+    const v = (shipData.vessels[lv.mmsi] ||= { mmsi: lv.mmsi });
+    if (!v.lastSeen || lv.lastSeen >= v.lastSeen) Object.assign(v, lv);
+    describe(v);
+  }
+}
+function showShipAge() {
+  const pill = $("#shipsAge");
+  pill.classList.toggle("ships-live", !!liveOn());
+  pill.textContent = liveOn() ? "● Live" : !shipData ? "offline" : shipData.updated ? `updated ${ago(shipData.updated)}` : "not set up";
+  pill.title = liveOn() ? "Ship positions update every 20 seconds" : "Ship positions update about every 10 minutes";
+}
+function renderAllShips() {
+  showShipAge();
   renderShips();
   renderNext();
   renderMap();
   updateCamBadges();
+}
+async function updateLive() {
+  if (!CFG.liveUrl || document.hidden) return;
+  try {
+    live = await getJson(CFG.liveUrl, 8000);
+    liveAt = Date.now();
+    applyLive();
+  } catch { live = null; }
+  renderAllShips();
+}
+async function updateShips() {
+  try {
+    shipData = await getJson(CFG.shipsDataUrl);
+    checkEvents(shipData.events || []);
+    applyLive();
+  } catch { shipData = null; }
+  renderAllShips();
 }
 
 // ---------- alerts ----------
@@ -751,8 +785,8 @@ function renderTypeLegend() {
 }
 function renderMap() {
   if (!map || !shipData?.vessels) return;
-  shipLayer.clearLayers();
   const showSmall = $("#showSmall").checked;
+  const keep = new Set();
   for (const v of Object.values(shipData.vessels)) {
     const type = shipType(v);
     if (v.lat == null || (type === "personal" && !showSmall)) continue;
@@ -760,14 +794,30 @@ function renderMap() {
     const sog = v.sog || 0, moving = sog >= 1;
     const cog = v.cog != null && v.cog < 360 ? v.cog : null, hdg = v.heading != null && v.heading < 360 ? v.heading : null;
     const rot = (moving ? cog ?? hdg : hdg) ?? 0;
-    const icon = L.divIcon({ className: "ship-marker", iconSize: [ICON, ICON], iconAnchor: [ICON / 2, ICON / 2], html: shipSvg(type, COLORS[kind], rot, sog, v.mmsi) });
+    const svg = shipSvg(type, COLORS[kind], rot, sog, v.mmsi);
     const seen = allCams().filter((c) => inView(spotFor(c), v));
     const label = `${v.name || v.mmsi} · ${SHIP_TYPES[type].label.replace(/ \(.*/, "")}${moving ? ` · ${knots(v)}` : ""}`;
-    markers[v.mmsi] = L.marker([v.lat, v.lon], { icon, title: label, alt: label, zIndexOffset: SHIP_TYPES[type].z }).addTo(shipLayer)
-      .bindPopup(`<b>${esc(v.name || v.mmsi)}</b>${isFav(v) ? " ★" : ""}<br>${esc(v.status || "")}<br>${esc([type === "tour" ? "Harbor tour boat" : v.typeName, ft(v.length), moving ? knots(v) : v.sog != null && "Stopped"].filter(Boolean).join(" · "))}${v.destination ? `<br>Destination: ${esc(v.destination)}` : ""}${v.etaMinutes != null ? `<br>At the entry around ${fmtTime(PASSAGE_MS(v))}` : ""}
+    const popup = `<b>${esc(v.name || v.mmsi)}</b>${isFav(v) ? " ★" : ""}<br>${esc(v.status || "")}<br>${esc([type === "tour" ? "Harbor tour boat" : v.typeName, ft(v.length), moving ? knots(v) : v.sog != null && "Stopped"].filter(Boolean).join(" · "))}${v.destination ? `<br>Destination: ${esc(v.destination)}` : ""}${v.etaMinutes != null ? `<br>At the entry around ${fmtTime(PASSAGE_MS(v))}` : ""}
         ${seen.length ? `<br>In view of ${esc(seen.map((c) => c.title).join(", "))}` : ""}
-        <br>${seen.length ? `<button class="btn small" data-watch="${v.mmsi}">📷 Watch</button> ` : ""}<button class="btn small" data-open="${v.mmsi}">Details</button>`);
+        <br>${seen.length ? `<button class="btn small" data-watch="${v.mmsi}">📷 Watch</button> ` : ""}<button class="btn small" data-open="${v.mmsi}">Details</button>`;
+    // Update existing markers in place, so an open popup stays open as ships move.
+    let m = markers[v.mmsi];
+    if (!m) m = markers[v.mmsi] = L.marker([v.lat, v.lon]).addTo(shipLayer).bindPopup("");
+    m.setLatLng([v.lat, v.lon]).setZIndexOffset(SHIP_TYPES[type].z);
+    if (m._cpSvg !== svg) {
+      m.setIcon(L.divIcon({ className: "ship-marker", iconSize: [ICON, ICON], iconAnchor: [ICON / 2, ICON / 2], html: svg }));
+      m._cpSvg = svg;
+    }
+    m.getElement()?.setAttribute("title", label);
+    m.getElement()?.setAttribute("aria-label", label);
+    if (m._cpPopup !== popup) {
+      m.setPopupContent(popup);
+      m._cpPopup = popup;
+      if (m.isPopupOpen()) wireShipButtons(m.getPopup().getElement());
+    }
+    keep.add(v.mmsi);
   }
+  for (const k of Object.keys(markers)) if (!keep.has(k)) { shipLayer.removeLayer(markers[k]); delete markers[k]; }
   drawCones();
 }
 function focusMap(v) {
@@ -817,6 +867,7 @@ function init() {
   updateLake(); setInterval(updateLake, 15 * 60e3);
   updateSky(); setInterval(updateSky, 30 * 60e3);
   updateShips(); setInterval(updateShips, 2 * 60e3);
+  updateLive(); setInterval(updateLive, 20e3);
   $$(".ships .tabs button").forEach((b) => (b.onclick = () => { shipTab = b.dataset.tab; renderShips(); }));
   $("#showSmall").checked = store.get("showSmall", false);
   $("#showSmall").onchange = () => { store.set("showSmall", $("#showSmall").checked); renderMap(); };
@@ -826,7 +877,7 @@ function init() {
     b.classList.add("playing"); setTimeout(() => b.classList.remove("playing"), r || 1000);
   }));
   showFact(); $("#nextFact").onclick = () => showFact();
-  document.addEventListener("visibilitychange", () => { if (!document.hidden) { updateShips(); updateCurrent(); } });
+  document.addEventListener("visibilitychange", () => { if (!document.hidden) { updateShips(); updateLive(); updateCurrent(); } });
   if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {});
 }
 init();

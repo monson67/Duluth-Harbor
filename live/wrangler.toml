@@ -1,0 +1,16 @@
+# Cloudflare settings for the live ship-position helper. Deploy from this
+# folder with:  npx wrangler deploy
+name = "canal-park-live"
+main = "worker.mjs"
+compatibility_date = "2026-09-01"
+
+[vars]
+ALLOWED_ORIGINS = "https://monson67.github.io,http://localhost:8000"
+
+[[durable_objects.bindings]]
+name = "FEED"
+class_name = "Feed"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["Feed"]
