@@ -48,26 +48,18 @@ function tickClock() {
 }
 
 // ---------- cameras ----------
-let liveCams = [];
-let camChecks = {}; // YouTube's answer for each video: playable or not
-const playable = (c) => !c.youtube || camChecks[c.youtube]?.ok !== false;
-const camList = () => store.get("cameras", CFG.cameras).filter((c) => !c.channel);
-function camSrc(c) {
-  if (c.channel) return `https://www.youtube.com/embed/live_stream?channel=${c.channel}&autoplay=1&mute=1&playsinline=1`;
-  return `https://www.youtube-nocookie.com/embed/${c.youtube}?autoplay=1&mute=1&playsinline=1&rel=0`;
-}
-function allCams() {
-  const mine = camList().filter(playable);
-  const ids = new Set(mine.map((c) => c.youtube));
-  return [...mine, ...liveCams.filter((c) => !ids.has(c.youtube)).map((c) => ({ ...c, auto: c.from === "channel" }))];
-}
-// Which mapped camera spot does a camera stream belong to?
-function spotFor(cam) {
-  if (cam.spot === "none") return null;
-  const spots = CFG.cameraSpots || [];
-  if (cam.spot) return spots.find((s) => s.key === cam.spot) || null;
-  return spots.find((s) => new RegExp(s.match, "i").test(cam.title || "")) || null;
-}
+// Cameras come from js/config.js (cameraLocations), grouped by location and
+// listed in priority order. The updater checks each one and saves its current
+// YouTube stream in data/cams.json.
+const LOCS = CFG.cameraLocations || [];
+const LAYOUTS = [1, 2, 4, 6];
+let camStatus = {}; // camera key -> { youtube, ok }
+const camYouTube = (c) => camStatus[c.key]?.youtube || c.youtube;
+const camLive = (c) => (camStatus[c.key] ? camStatus[c.key].ok : !!c.youtube);
+const camSrc = (c) => `https://www.youtube-nocookie.com/embed/${camYouTube(c)}?autoplay=1&mute=1&playsinline=1&rel=0`;
+// Every live camera, in location and priority order (for ship labels and the map).
+const allCams = () => LOCS.flatMap((l) => l.cams.map((c) => ({ ...c, loc: l.key }))).filter(camLive);
+const spotFor = (cam) => (CFG.cameraSpots || []).find((s) => s.key === cam?.spot) || null;
 const angleDiff = (a, b) => Math.abs(((a - b + 540) % 360) - 180);
 function inView(spot, v) {
   if (!spot || v.lat == null) return false;
@@ -79,80 +71,84 @@ function shipsInView(spot) {
   return Object.values(shipData.vessels).filter((v) => isFreighter(v) && inView(spot, v))
     .sort((a, b) => distanceNm(spot.lat, spot.lon, a.lat, a.lon) - distanceNm(spot.lat, spot.lon, b.lat, b.lon));
 }
+const currentLoc = () => LOCS.find((l) => l.key === store.get("camLoc", LOCS[0]?.key)) || LOCS[0];
+// Layouts a location can fill (Duluth gets 6; one-camera spots only get 1).
+const layoutsFor = (loc) => LAYOUTS.filter((n) => n === 1 || n <= loc.cams.length);
+// The cameras to show: live ones in priority order, then any the viewer picked
+// from a dropdown for that spot.
+function tileCams(loc, n) {
+  const ordered = [...loc.cams.filter(camLive), ...loc.cams.filter((c) => !camLive(c))];
+  const picks = store.get("camPicks2", {})[loc.key] || [];
+  return Array.from({ length: Math.min(n, loc.cams.length) }, (_, i) => loc.cams.find((c) => c.key === picks[i]) || ordered[i]);
+}
+function setPick(locKey, i, camKey) {
+  const all = store.get("camPicks2", {});
+  const picks = (all[locKey] ||= []);
+  picks[i] = camKey;
+  store.set("camPicks2", all);
+}
 function updateCamBadges() {
   $$("#camGrid .cam").forEach((tile) => {
-    const cam = allCams()[+tile.dataset.cam];
+    const cam = allCams().find((c) => c.key === tile.dataset.key);
     const box = tile.querySelector(".inview");
     const list = cam ? shipsInView(spotFor(cam)).slice(0, 3) : [];
     box.innerHTML = list.map((v) => `<span data-mmsi="${v.mmsi}" title="Tap for ship details">${esc(v.name || v.mmsi)}</span>`).join("");
     $$("span", box).forEach((b) => (b.onclick = () => openShip(b.dataset.mmsi)));
   });
 }
-// Put a ship's best camera in the first tile.
-function watchOnCamera(mmsi) {
-  const v = shipData?.vessels?.[mmsi];
-  if (!v) return;
-  const cams = allCams();
-  const idx = cams.findIndex((c) => inView(spotFor(c), v));
-  if (idx < 0) { toast("No camera sees that ship right now", "Try again when it's closer to the canal."); return; }
-  const picks = store.get("camPicks", [0, 1, 2, 3]);
-  picks[0] = idx; store.set("camPicks", picks);
+// Show a camera in the first view (switching location if needed).
+function showCamera(cam) {
+  store.set("camLoc", cam.loc);
+  setPick(cam.loc, 0, cam.key);
   renderCams();
-  $("#shipDialog").open && $("#shipDialog").close();
   const tile = $("#camGrid .cam");
   tile.scrollIntoView({ behavior: "smooth", block: "center" });
   tile.classList.add("flash-focus"); setTimeout(() => tile.classList.remove("flash-focus"), 2500);
 }
+function watchOnCamera(mmsi) {
+  const v = shipData?.vessels?.[mmsi];
+  if (!v) return;
+  const cam = allCams().find((c) => inView(spotFor(c), v));
+  if (!cam) { toast("No camera sees that ship right now", "Try again when it's closer to the canal."); return; }
+  $("#shipDialog").open && $("#shipDialog").close();
+  showCamera(cam);
+}
 function renderCams() {
-  const layout = store.get("camLayout", 2);
+  const loc = currentLoc();
+  if (!loc) return;
+  const options = layoutsFor(loc);
+  const wanted = store.get("camLayout", 2);
+  const layout = options.includes(wanted) ? wanted : Math.max(...options.filter((n) => n <= wanted));
+  $$("#camLocs button").forEach((b) => b.classList.toggle("on", b.dataset.loc === loc.key));
+  $$("#camLayouts button").forEach((b) => { b.hidden = !options.includes(+b.dataset.layout); b.classList.toggle("on", +b.dataset.layout === layout); });
   const grid = $("#camGrid");
   grid.className = `cam-grid layout-${layout}`;
-  $$(".seg button").forEach((b) => b.classList.toggle("on", +b.dataset.layout === layout));
-  const cams = allCams();
-  const picks = store.get("camPicks", [0, 1, 2, 3]);
   grid.innerHTML = "";
-  for (let i = 0; i < Math.min(layout, cams.length); i++) {
-    const idx = Math.min(picks[i] ?? i, cams.length - 1);
-    const cam = cams[idx] || cams[0];
-    if (!cam) break;
+  tileCams(loc, layout).forEach((cam, i) => {
     const tile = document.createElement("div");
     tile.className = "cam";
-    tile.dataset.cam = cams.indexOf(cam);
-    const opts = cams.map((c, j) => `<option value="${j}" ${j === idx ? "selected" : ""}>${esc(c.title)}${c.auto ? " (live now)" : ""}</option>`).join("");
-    tile.innerHTML = `<select aria-label="Choose camera">${opts}</select>
-      <iframe src="${camSrc(cam)}" title="${esc(cam.title)}" allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowfullscreen loading="lazy"></iframe><div class="inview"></div>`;
-    tile.querySelector("select").onchange = (e) => { picks[i] = +e.target.value; store.set("camPicks", picks); renderCams(); };
+    tile.dataset.key = cam.key;
+    const opts = loc.cams.map((c) => `<option value="${c.key}" ${c.key === cam.key ? "selected" : ""}>${esc(c.title)}${camLive(c) ? "" : " (not live)"}</option>`).join("");
+    tile.innerHTML = `<select aria-label="Choose camera">${opts}</select>` + (camLive(cam)
+      ? `<iframe src="${camSrc(cam)}" title="${esc(cam.title)}" allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowfullscreen loading="lazy"></iframe><div class="inview"></div>`
+      : `<div class="cam-off"><b>${esc(cam.title)}</b>isn't live right now.<br><a href="${CFG.cameraSourcePage}" target="_blank" rel="noopener">Check the museum's camera page ↗</a></div>`);
+    tile.querySelector("select").onchange = (e) => { setPick(loc.key, i, e.target.value); renderCams(); };
     grid.append(tile);
-  }
+  });
   updateCamBadges();
 }
-function parseYouTube(url) {
-  const m = String(url).match(/(?:v=|youtu\.be\/|\/live\/|\/embed\/|\/shorts\/)([\w-]{11})/) || String(url).match(/^([\w-]{11})$/);
-  return m && m[1];
-}
-function renderCamDialog() {
-  $("#camChannelLink").href = CFG.cameraChannelPage;
-  const cams = camList();
-  $("#camList").innerHTML = cams.map((c, i) => `<li><span>${esc(c.title)}${playable(c) ? "" : ` <span class="muted">(not playing right now, hidden)</span>`}</span><button class="btn small" data-i="${i}">Remove</button></li>`).join("")
-    + liveCams.map((c) => `<li><span>${esc(c.title)} <span class="muted">(found automatically)</span></span></li>`).join("");
-  $$("#camList button").forEach((b) => (b.onclick = () => { const c = camList(); c.splice(+b.dataset.i, 1); store.set("cameras", c); renderCamDialog(); renderCams(); }));
-}
 function initCams() {
-  $$(".seg button").forEach((b) => (b.onclick = () => { store.set("camLayout", +b.dataset.layout); renderCams(); }));
-  $("#manageCams").onclick = () => { renderCamDialog(); $("#camDialog").showModal(); };
-  $("#camForm").onsubmit = (e) => {
-    e.preventDefault();
-    const id = parseYouTube($("#camUrl").value.trim());
-    if (!id) { toast("That doesn't look like a YouTube link", "Paste the full link from the YouTube stream page."); return; }
-    const c = camList();
-    c.push({ title: $("#camName").value.trim() || "Camera " + (c.length + 1), youtube: id });
-    store.set("cameras", c);
-    $("#camUrl").value = $("#camName").value = "";
-    renderCamDialog(); renderCams();
-  };
-  $("#camReset").onclick = () => { store.set("cameras", CFG.cameras); store.set("camPicks", [0, 1, 2, 3]); renderCamDialog(); renderCams(); };
+  $("#camLocs").innerHTML = LOCS.map((l) => `<button data-loc="${l.key}">${esc(l.name)}</button>`).join("");
+  $$("#camLocs button").forEach((b) => (b.onclick = () => { store.set("camLoc", b.dataset.loc); renderCams(); }));
+  $$("#camLayouts button").forEach((b) => (b.onclick = () => { store.set("camLayout", +b.dataset.layout); renderCams(); }));
   renderCams();
-  getJson("data/cams.json").then((d) => { liveCams = d.cams || []; camChecks = d.checked || {}; renderCams(); }).catch(() => {});
+  // Swap in the streams the updater found, re-drawing only if something changed.
+  getJson("data/cams.json").then((d) => {
+    if (!d.cams || Array.isArray(d.cams)) return; // older format
+    const before = JSON.stringify(tileCams(currentLoc(), 6).map((c) => [camYouTube(c), camLive(c)]));
+    camStatus = d.cams;
+    if (JSON.stringify(tileCams(currentLoc(), 6).map((c) => [camYouTube(c), camLive(c)])) !== before) renderCams();
+  }).catch(() => {});
 }
 
 // ---------- marine radio ----------
@@ -679,11 +675,11 @@ function drawCones() {
   for (const spot of CFG.cameraSpots || []) {
     const pts = [[spot.lat, spot.lon]];
     for (let a = -spot.fov / 2; a <= spot.fov / 2; a += spot.fov / 12) pts.push(offset(spot.lat, spot.lon, spot.bearing + a, spot.range));
-    const camIdx = cams.findIndex((c) => spotFor(c) === spot);
+    const cam = cams.find((c) => c.spot === spot.key);
     const poly = L.polygon(pts, { color: "#4fb3e8", weight: 1, fillOpacity: 0.12, interactive: true }).addTo(coneLayer);
     const n = shipsInView(spot).length;
-    poly.bindTooltip(`${spot.name}${n ? ` · ${n} ship${n > 1 ? "s" : ""} in view` : ""}${camIdx < 0 ? " (not in your camera list)" : ""}`, { sticky: true });
-    if (camIdx >= 0) poly.on("click", () => { const picks = store.get("camPicks", [0, 1, 2, 3]); picks[0] = camIdx; store.set("camPicks", picks); renderCams(); $(".cams").scrollIntoView({ behavior: "smooth" }); });
+    poly.bindTooltip(`${spot.name}${n ? ` · ${n} ship${n > 1 ? "s" : ""} in view` : ""}${cam ? "" : " (not live right now)"}`, { sticky: true });
+    if (cam) poly.on("click", () => showCamera(cam));
   }
 }
 function initMap() {
@@ -787,7 +783,7 @@ function renderMap() {
     const cog = v.cog != null && v.cog < 360 ? v.cog : null, hdg = v.heading != null && v.heading < 360 ? v.heading : null;
     const rot = (moving ? cog ?? hdg : hdg) ?? 0;
     const svg = shipSvg(type, COLORS[kind], rot, sog, v.mmsi);
-    const seen = allCams().filter((c) => inView(spotFor(c), v));
+    const seen = allCams().filter((c) => inView(spotFor(c), v)).slice(0, 3);
     const label = `${v.name || v.mmsi} · ${SHIP_TYPES[type].label.replace(/ \(.*/, "")}${moving ? ` · ${knots(v)}` : ""}`;
     const popup = `<b>${esc(v.name || v.mmsi)}</b>${isFav(v) ? " ★" : ""}<br>${esc(v.status || "")}<br>${esc([type === "tour" ? "Harbor tour boat" : v.typeName, ft(v.length), moving ? knots(v) : v.sog != null && "Stopped"].filter(Boolean).join(" · "))}${v.destination ? `<br>Destination: ${esc(v.destination)}` : ""}${v.etaMinutes != null ? `<br>At the entry around ${fmtTime(PASSAGE_MS(v))}` : ""}
         ${seen.length ? `<br>In view of ${esc(seen.map((c) => c.title).join(", "))}` : ""}

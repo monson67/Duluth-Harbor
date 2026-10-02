@@ -162,36 +162,32 @@ async function checkVideo(id) {
   return { ok: true, title: j.title, author: j.author_name };
 }
 
-async function updateCams() {
-  const found = new Map(); // id -> where we found it
-  // 1. Streams that are live right now on Duluth Harbor Cam's channel.
-  try {
-    const html = await getText("https://www.youtube.com/@DuluthHarborCam1/streams", { headers: { "Accept-Language": "en-US", "User-Agent": "Mozilla/5.0" } });
-    const re = /"videoRenderer":\{"videoId":"([\w-]{11})"/g;
-    let m;
-    while ((m = re.exec(html))) {
-      const chunk = html.slice(m.index, m.index + 6000);
-      if (/LIVE_NOW|"style":"LIVE"|"label":"LIVE"/.test(chunk)) found.set(m[1], "channel");
-    }
-  } catch (e) { console.log("YouTube channel page:", e.message); }
-  // 2. Streams Canal Park's ship-schedule page embeds.
-  try {
-    const html = await getText("https://canalpark.com/duluth-ship-schedule/", { headers: { "User-Agent": "Mozilla/5.0" } });
-    for (const m of html.matchAll(/youtube(?:-nocookie)?\.com\/embed\/([\w-]{11})/g)) if (!found.has(m[1])) found.set(m[1], "canalpark");
-  } catch (e) { console.log("Canal Park page:", e.message); }
-  // 3. The app's built-in cameras (from js/config.js).
-  const defaults = [...(await readFile("js/config.js", "utf8")).matchAll(/youtube:\s*"([\w-]{11})"/g)].map((m) => m[1]);
-  for (const id of defaults) if (!found.has(id)) found.set(id, "default");
+// Follow a museum (CamStreamer) camera link to the YouTube stream it's
+// showing right now. Returns null when the camera isn't live.
+async function followCamStreamer(id) {
+  const res = await fetch(`https://camstreamer.com/embed/${id}`, { redirect: "follow", signal: AbortSignal.timeout(15000) });
+  return res.url.match(/youtube(?:-nocookie)?\.com\/embed\/([\w-]{11})/)?.[1] || null;
+}
 
-  const cams = [], checked = {};
-  for (const [id, from] of found) {
-    let r;
-    try { r = await checkVideo(id); } catch (e) { r = { ok: false, status: e.message }; }
-    checked[id] = r.ok ? { ok: true, title: r.title } : { ok: false, status: r.status };
-    console.log(`Camera ${id} (${from}): ${r.ok ? `OK · ${r.title} · ${r.author}` : `NOT PLAYABLE (${r.status})`}`);
-    if (r.ok && from !== "default") cams.push({ youtube: id, title: r.title.replace(/\s+/g, " ").trim(), from });
+// Check every camera in js/config.js: find its current YouTube stream and
+// whether YouTube will play it on other sites.
+async function updateCams() {
+  const config = await readFile("js/config.js", "utf8");
+  const cams = [...config.matchAll(/\{ key: "(\w+)", title: "([^"]+)"(?:, camstreamer: "([^"]*)")?, youtube: "([^"]*)"/g)]
+    .map(([, key, title, camstreamer, youtube]) => ({ key, title, camstreamer, youtube }));
+  const out = {};
+  for (const c of cams) {
+    let id = c.youtube || null;
+    if (c.camstreamer) {
+      try { id = await followCamStreamer(c.camstreamer); } catch (e) { console.log(`Camera ${c.title}: CamStreamer lookup failed (${e.message})`); }
+    }
+    let r = { ok: false, status: "not live" };
+    if (id) { try { r = await checkVideo(id); } catch (e) { r = { ok: false, status: e.message }; } }
+    out[c.key] = r.ok ? { youtube: id, ok: true } : { youtube: id, ok: false, status: String(r.status) };
+    console.log(`Camera ${c.title}: ${r.ok ? `OK · ${id}` : `NOT PLAYABLE (${r.status})`}`);
   }
-  return { updated: now(), cams, checked };
+  if (!cams.length) throw new Error("no cameras found in js/config.js");
+  return { updated: now(), cams: out };
 }
 
 // --- Posted schedule --------------------------------------------------------------

@@ -47,14 +47,15 @@
     <section class="panel cams" aria-labelledby="camsTitle">
       <div class="panel-head">
         <h2 id="camsTitle">Live cameras</h2>
-        <div class="seg" role="group" aria-label="Camera layout">
-          <button data-layout="1">1</button><button data-layout="2" class="on">2</button><button data-layout="4">4</button>
+        <div class="seg" id="camLayouts" role="group" aria-label="How many cameras">
+          <button data-layout="1">1</button><button data-layout="2">2</button><button data-layout="4">4</button><button data-layout="6">6</button>
         </div>
       </div>
+      <div class="seg cam-locs" id="camLocs" role="group" aria-label="Camera location"></div>
       <div id="camGrid" class="cam-grid layout-2"></div>
-      <p class="fine">Streams by <a href="https://www.duluthharborcam.com/" target="_blank" rel="noopener">Duluth Harbor Cam</a>.
-        Ship names under a camera are ships that should be in its view.
-        <button class="linkish" id="manageCams">Manage cameras</button></p>
+      <p class="fine">Cameras by the <a href="https://www.lsmma.com/content.aspx?page_id=22&amp;club_id=605134&amp;module_id=524613" target="_blank" rel="noopener">Lake Superior Marine Museum Association</a>
+        (Duluth Harbor Cam); you can <a href="https://www.lsmma.com/" target="_blank" rel="noopener">donate to their camera fund</a>.
+        Ship names on a camera are freighters that should be in its view.</p>
     </section>
 
     <div class="side">
@@ -260,20 +261,6 @@
 
       <h3>Install on iPhone</h3>
       <p class="fine">In Safari, tap <b>Share</b> → <b>Add to Home Screen</b>. Open it from the home screen, then turn on notifications above.</p>
-    </div>
-  </dialog>
-
-  <dialog id="camDialog" class="sheet">
-    <form method="dialog" class="sheet-head"><h2>Manage cameras</h2><button class="btn icon" aria-label="Close">✕</button></form>
-    <div class="sheet-body">
-      <p class="fine">Find a stream on <a id="camChannelLink" target="_blank" rel="noopener">Duluth Harbor Cam's YouTube page</a>, copy its link, and paste it here.</p>
-      <form id="camForm" class="row">
-        <input id="camUrl" placeholder="https://www.youtube.com/watch?v=…" aria-label="YouTube link">
-        <input id="camName" placeholder="Name (optional)" aria-label="Camera name">
-        <button class="btn">Add</button>
-      </form>
-      <ul id="camList" class="cam-list"></ul>
-      <button class="btn small" id="camReset">Reset to defaults</button>
     </div>
   </dialog>
 
