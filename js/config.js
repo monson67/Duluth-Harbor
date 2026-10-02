@@ -57,6 +57,10 @@ window.CANAL_CONFIG = {
   // Extra info about well-known ships (usual cargo, photos, notes).
   fleetUrl: "config/fleet.json",
 
+  // Harbor tour boats, matched by name. Ship radio beacons don't say "tour
+  // boat", so list them here to give them their own shape on the map.
+  tourBoats: ["VISTA STAR", "VISTA QUEEN"],
+
   // Posted ship schedule: Harbor Lookout, the same schedule Canal Park's
   // ship-schedule page shows. It appears inside the app's "Posted schedule" tab.
   scheduleSource: { name: "Harbor Lookout", url: "https://harborlookout.com/" },

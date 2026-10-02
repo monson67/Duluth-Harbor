@@ -670,24 +670,64 @@ function initMap() {
   $("#showCones").onchange = drawCones;
   drawCones();
   map.on("popupopen", (e) => wireShipButtons(e.popup.getElement()));
+  renderTypeLegend();
+}
+// Boat types: each gets its own top-down hull, drawn bow-up around (0,0).
+// "deck" is a lighter cabin/pilothouse detail; "half" is half the hull length.
+const TOUR_RE = new RegExp(`^(${(CFG.tourBoats || []).map((n) => n.replace(/[^\w ]/g, "")).join("|") || "$^"})\\b`, "i");
+const SHIP_TYPES = {
+  freighter: { label: "Freighter", z: 400, half: 15, w: 7, hull: "M0,-15 L3.5,-10 L3.5,15 L-3.5,15 L-3.5,-10 Z", deck: `<rect x="-2.5" y="9" width="5" height="4" rx=".8"/>` },
+  tour: { label: "Vista Fleet tour boat", z: 300, half: 9.5, w: 7, hull: "M0,-9.5 C3.5,-7 3.5,-5 3.5,-3 L3.5,7.5 Q3.5,9.5 1.5,9.5 L-1.5,9.5 Q-3.5,9.5 -3.5,7.5 L-3.5,-3 C-3.5,-5 -3.5,-7 0,-9.5 Z", deck: `<rect x="-2" y="-4" width="4" height="11" rx="1"/>` },
+  tug: { label: "Tug", z: 200, half: 6.5, w: 8, hull: "M0,-6.5 C4,-6.5 4,-3 4,0 L4,5 Q4,6.5 2.5,6.5 L-2.5,6.5 Q-4,6.5 -4,5 L-4,0 C-4,-3 -4,-6.5 0,-6.5 Z", deck: `<rect x="-2" y="-2" width="4" height="3.5" rx=".6"/>` },
+  personal: { label: "Personal craft", z: 0, half: 5, w: 4, hull: "M0,-5 C2,-2 2,0 2,2 L2,5 L-2,5 L-2,2 C-2,0 -2,-2 0,-5 Z", deck: "" },
+  other: { label: "Other (Coast Guard, research, cruise…)", z: 100, half: 7, w: 6, hull: "M0,-7 L3,-3 L3,7 L-3,7 L-3,-3 Z", deck: "" },
+};
+function shipType(v) {
+  const t = v.type, len = v.length || 0;
+  if (TOUR_RE.test(v.name || "")) return "tour";
+  if ((t >= 70 && t <= 89) || (len >= 100 && !(t >= 60 && t <= 69))) return "freighter";
+  if (t === 31 || t === 32 || t === 52 || t === 33) return "tug";
+  if (t === 36 || t === 37) return "personal";
+  if ((t >= 30 && t <= 59) || (t >= 60 && t <= 69) || /^(R\/V|USCG|CG)\b/i.test(v.name || "")) return "other";
+  return len && len >= 40 ? "other" : "personal";
+}
+const knots = (v) => `${v.sog.toFixed(1)} kn (${Math.round(v.sog * 1.151)} mph)`;
+// One boat as SVG: hull in its status color pointing where it's going, with a
+// fading wake behind it that grows with speed (none when stopped).
+const ICON = 110;
+function shipSvg(type, color, rot, sog, id) {
+  const s = SHIP_TYPES[type], c = ICON / 2;
+  const wake = sog >= 1 ? Math.min(6 + sog * 2.2, 36) : 0;
+  const w = s.w / 2;
+  const wakeSvg = wake ? `<defs><linearGradient id="wk${id}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${color}" stop-opacity=".6"/><stop offset="1" stop-color="${color}" stop-opacity="0"/></linearGradient></defs>
+    <path d="M${-w * 0.8},${s.half - 1} L${w * 0.8},${s.half - 1} L${w * 2.2},${s.half + wake} L${-w * 2.2},${s.half + wake} Z" fill="url(#wk${id})"/>` : "";
+  return `<svg viewBox="0 0 ${ICON} ${ICON}" width="${ICON}" height="${ICON}"><g transform="translate(${c} ${c}) rotate(${rot})">${wakeSvg}
+    <path class="hull" d="${s.hull}" fill="${color}" stroke="#fff" stroke-width="1.4" stroke-linejoin="round"/>
+    <g fill="#fff" fill-opacity=".85" pointer-events="none">${s.deck}</g></g></svg>`;
+}
+function renderTypeLegend() {
+  const box = $("#typeLegend");
+  if (!box) return;
+  box.innerHTML = Object.entries(SHIP_TYPES).map(([k, s]) =>
+    `<span><svg viewBox="-17 -7 34 14" width="34" height="14" aria-hidden="true"><g transform="rotate(90)"><path d="${s.hull}" fill="#8a99a8" stroke="#fff" stroke-width="1.2"/><g fill="#fff" fill-opacity=".85">${s.deck}</g></g></svg>${esc(s.label)}</span>`).join("") +
+    `<span><svg viewBox="-17 -7 34 14" width="34" height="14" aria-hidden="true"><defs><linearGradient id="wkLegend"><stop offset="0" stop-color="#8a99a8" stop-opacity="0"/><stop offset="1" stop-color="#8a99a8" stop-opacity=".7"/></linearGradient></defs><path d="M-17,-4 L2,-1.5 L2,1.5 L-17,4 Z" fill="url(#wkLegend)"/><g transform="rotate(90)"><path d="${SHIP_TYPES.tug.hull}" fill="#8a99a8" stroke="#fff" stroke-width="1.2" transform="translate(0 -9)"/></g></svg>Longer wake = faster</span>`;
 }
 function renderMap() {
   if (!map || !shipData?.vessels) return;
   shipLayer.clearLayers();
   const showSmall = $("#showSmall").checked;
   for (const v of Object.values(shipData.vessels)) {
-    if (v.lat == null || !(showSmall || isCommercial(v) || isFav(v))) continue;
+    const type = shipType(v);
+    if (v.lat == null || !(showSmall || isCommercial(v) || isFav(v) || type === "tour")) continue;
     const kind = v.approachEntry ? "approach" : v.departEntry ? "depart" : /anchor/i.test(v.status) ? "anchor" : v.status === "Underway in harbor" ? "harbor" : v.zone === "lake" ? "lake" : "dock";
-    const moving = (v.sog || 0) >= 1;
-    const rot = v.heading ?? v.cog ?? 0;
-    const shape = moving ? `<path d="M11 1 L18 20 L11 16 L4 20 Z"/>` : `<circle cx="11" cy="11" r="6"/>`;
-    const icon = L.divIcon({
-      className: "ship-marker", iconSize: [22, 22], iconAnchor: [11, 11],
-      html: `<svg viewBox="0 0 22 22" style="transform:rotate(${moving ? rot : 0}deg)" fill="${COLORS[kind]}" stroke="#fff" stroke-width="1.5">${shape}</svg>`,
-    });
+    const sog = v.sog || 0, moving = sog >= 1;
+    const cog = v.cog != null && v.cog < 360 ? v.cog : null, hdg = v.heading != null && v.heading < 360 ? v.heading : null;
+    const rot = (moving ? cog ?? hdg : hdg) ?? 0;
+    const icon = L.divIcon({ className: "ship-marker", iconSize: [ICON, ICON], iconAnchor: [ICON / 2, ICON / 2], html: shipSvg(type, COLORS[kind], rot, sog, v.mmsi) });
     const seen = allCams().filter((c) => inView(spotFor(c), v));
-    markers[v.mmsi] = L.marker([v.lat, v.lon], { icon, title: v.name }).addTo(shipLayer)
-      .bindPopup(`<b>${esc(v.name || v.mmsi)}</b>${isFav(v) ? " ★" : ""}<br>${esc(v.status || "")}<br>${esc([v.typeName, ft(v.length), v.sog != null && `${v.sog.toFixed(1)} kn`].filter(Boolean).join(" · "))}${v.destination ? `<br>Destination: ${esc(v.destination)}` : ""}${v.etaMinutes != null ? `<br>At the entry around ${fmtTime(PASSAGE_MS(v))}` : ""}
+    const label = `${v.name || v.mmsi} · ${SHIP_TYPES[type].label.replace(/ \(.*/, "")}${moving ? ` · ${knots(v)}` : ""}`;
+    markers[v.mmsi] = L.marker([v.lat, v.lon], { icon, title: label, alt: label, zIndexOffset: SHIP_TYPES[type].z }).addTo(shipLayer)
+      .bindPopup(`<b>${esc(v.name || v.mmsi)}</b>${isFav(v) ? " ★" : ""}<br>${esc(v.status || "")}<br>${esc([type === "tour" ? "Harbor tour boat" : v.typeName, ft(v.length), moving ? knots(v) : v.sog != null && "Stopped"].filter(Boolean).join(" · "))}${v.destination ? `<br>Destination: ${esc(v.destination)}` : ""}${v.etaMinutes != null ? `<br>At the entry around ${fmtTime(PASSAGE_MS(v))}` : ""}
         ${seen.length ? `<br>👁 In view of ${esc(seen.map((c) => c.title).join(", "))}` : ""}
         <br>${seen.length ? `<button class="btn small" data-watch="${v.mmsi}">📷 Watch</button> ` : ""}<button class="btn small" data-open="${v.mmsi}">Details</button>`);
   }

@@ -232,7 +232,9 @@ h3 { font-size: .9rem; margin: 18px 0 6px; }
 
 /* Map */
 #map { height: 380px; border-radius: 10px; z-index: 0; background: var(--panel-2); }
-.ship-marker svg { width: 22px; height: 22px; filter: drop-shadow(0 1px 1px rgba(0,0,0,.5)); }
+.ship-marker { pointer-events: none; }
+.ship-marker svg { display: block; overflow: visible; filter: drop-shadow(0 1px 1px rgba(0,0,0,.5)); }
+.ship-marker .hull { pointer-events: auto; cursor: pointer; }
 
 /* Stats */
 .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 8px; }
@@ -320,6 +322,8 @@ input[type="text"], input:not([type]), .sheet input:not([type="checkbox"]) {
 /* Map legend */
 .map-legend { display: flex; flex-wrap: wrap; gap: 4px 14px; margin-top: 8px; }
 .map-legend i { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 5px; vertical-align: -1px; }
+.type-legend { align-items: center; }
+.type-legend svg { vertical-align: middle; margin-right: 4px; }
 .map-legend i.cone { border-radius: 2px; background: rgba(79, 179, 232, .35); border: 1px solid #4fb3e8; }
 .leaflet-popup-content { font-size: 13px; }
 .leaflet-popup-content button { margin-top: 6px; }
