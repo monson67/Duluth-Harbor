@@ -1,5 +1,10 @@
 # Every ~10 minutes: collect ship positions, canal current, lake and camera
 # data, send ship alerts, and publish the website to GitHub Pages.
+#
+# GitHub often runs scheduled jobs hours late, so each run starts the next one
+# itself about 10 minutes later (the "next" job). The schedule is only a backup
+# that restarts the chain if it ever stops. To pause updates, disable this
+# workflow in the Actions tab.
 name: Update data and publish site
 
 on:
@@ -14,14 +19,13 @@ permissions:
   pages: write
   id-token: write
 
-concurrency:
-  group: pages
-  cancel-in-progress: false
-
 jobs:
   update:
     runs-on: ubuntu-latest
     timeout-minutes: 12
+    concurrency:
+      group: pages
+      cancel-in-progress: false
     environment:
       name: github-pages
       url: ${{ steps.deploy.outputs.page_url }}
@@ -53,3 +57,29 @@ jobs:
 
       - id: deploy
         uses: actions/deploy-pages@v4
+
+  next:
+    needs: update
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      actions: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+    steps:
+      - name: Wait, then start the next update
+        run: |
+          started=$(gh run view "$GITHUB_RUN_ID" --json createdAt --jq .createdAt)
+          wait=$(( $(date -d "$started" +%s) + 570 - $(date +%s) ))
+          if [ "$wait" -gt 0 ]; then sleep "$wait"; fi
+          # If a newer run is already waiting or running, let it carry on instead.
+          newer=$(gh run list --workflow update-and-deploy.yml --limit 20 \
+            --json databaseId,status \
+            --jq "[.[] | select(.status != \"completed\" and .databaseId > $GITHUB_RUN_ID)] | length")
+          if [ "$newer" -gt 0 ]; then
+            echo "A newer update is already on its way."
+          else
+            gh workflow run update-and-deploy.yml --ref main
+          fi

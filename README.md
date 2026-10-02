@@ -84,7 +84,7 @@ tap the bell 🔔, and choose **Turn on notifications** for alerts while the app
 
 ## Good to know
 
-- **Ship alerts are approximate.** The updater checks about every 10 minutes (GitHub sometimes runs it late),
+- **Ship alerts are approximate.** The updater checks about every 10 minutes (each run starts the next, since GitHub runs scheduled jobs late),
   so "approaching" alerts usually come 20–90 minutes before a ship reaches the canal, and "arrived"/"departed" alerts come shortly after.
 - **Ship photos** come from Wikimedia Commons when a matching photo exists, with credit shown on the photo. Lesser-known ships may show a drawing instead.
 - **The current light is our recreation** of the bridge's signal, based on USGS readings
